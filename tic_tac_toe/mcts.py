@@ -10,8 +10,12 @@ from tic_tac_toe.player import TicTacToeBot
 logger.add("tic_tac_toe/mcts.log", mode="w")
 
 
-class MCTNode:
-    def __init__(self, parent: "MCTNode", board: TicTacToeBoard, opts: dict):
+class MCSTNode:
+    """
+    Monte Carlo Search Tree Node.
+    """
+
+    def __init__(self, parent: "MCSTNode", board: TicTacToeBoard, opts: dict):
         self.parent = parent
         self.children = []
         self.board = board
@@ -28,7 +32,7 @@ class MCTNode:
         uct_info = f"[Visits] {self.visits} [Value] {self.value}"
         return f"{struct_info} | {uct_info} | {last_info}"
 
-    def calc_utc_score(self, child: "MCTNode", c: float) -> float:
+    def calc_utc_score(self, child: "MCSTNode", c: float) -> float:
         """
         Calculate UTC score for child WRT parent node.
         """
@@ -36,7 +40,7 @@ class MCTNode:
         exploration = np.sqrt(np.log(self.visits) / child.visits)
         return exploitation + (c * exploration)
 
-    def get_best_child(self, c: float) -> "MCTNode":
+    def get_best_child(self, c: float) -> "MCSTNode":
         """
         Choose child with highest UCT score.
         """
@@ -49,14 +53,14 @@ class MCTNode:
             raise ValueError("Failed to find best child node.")
         return best_child_node
 
-    def expand(self) -> "MCTNode":
+    def expand(self) -> "MCSTNode":
         """
         Add a child node corresponding to new game state after an unused move has been executed.
         """
         new_board = copy.deepcopy(self.board)
         # Exec next available move for child, not random move.
         new_board.exec_move(self.unused_moves.pop())
-        child = MCTNode(self, new_board, self.opts)
+        child = MCSTNode(self, new_board, self.opts)
         self.children.append(child)
         return child  # Return the expanded child node.
 
@@ -66,7 +70,7 @@ class MCTNode:
         """
         return len(self.unused_moves) == 0
 
-    def traverse(self) -> "MCTNode":
+    def traverse(self) -> "MCSTNode":
         """
         Step through best child nodes if fully expanded, or expand if not.
         """
@@ -94,7 +98,7 @@ class MCTNode:
                 return player if board.game_result == "win" else "draw"
         return board.game_result
 
-    def get_reward(self, node: "MCTNode", game_result: TicTacToeBot | str) -> float:
+    def get_reward(self, node: "MCSTNode", game_result: TicTacToeBot | str) -> float:
         """
         Calculate reward for a terminated game.
         """
