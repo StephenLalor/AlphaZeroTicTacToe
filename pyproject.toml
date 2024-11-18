@@ -10,6 +10,7 @@ python = "3.13"
 numpy = "^2.1.2"
 loguru = "^0.7.2"
 ruff = "^0.7.4"
+flask-socketio = "^5.4.1"
 
 
 [build-system]
