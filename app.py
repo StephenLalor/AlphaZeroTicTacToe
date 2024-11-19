@@ -3,9 +3,9 @@ from threading import Event, Thread
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 
+from mcts.mcts import MCSTNode
+from mcts.parse_tree import parse_mcst
 from tic_tac_toe.board import TicTacToeBoard
-from tic_tac_toe.mcts import MCSTNode
-from tic_tac_toe.parse_tree import parse_mcst
 from tic_tac_toe.player import TicTacToeBot
 
 
@@ -31,8 +31,16 @@ class MCTSApp:
                 self.thread.start()
 
     def generate_tree_data(self):
-        opts = {"sim_lim": (9 * 10) + 1, "c": 1.4, "win": 1.0, "lose": -1.0, "draw": 0.5}
-        board = TicTacToeBoard(TicTacToeBot("p1", "X", "random"), TicTacToeBot("p2", "O", "random"))
+        opts = {
+            "sim_lim": (9 * 10) + 1,
+            "c": 1.4,
+            "win": 1.0,
+            "lose": -1.0,
+            "draw": 0.5,
+        }
+        board = TicTacToeBoard(
+            TicTacToeBot("p1", "X", "random"), TicTacToeBot("p2", "O", "random")
+        )
         root_node = MCSTNode(None, board, opts)
         for root in root_node.sim():
             update_data = parse_mcst(root)

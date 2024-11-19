@@ -1,6 +1,6 @@
 import numpy as np
 
-from tic_tac_toe.mcts import MCSTNode
+from mcts.mcts import MCSTNode
 
 
 def parse_board_state(state: np.ndarray):
@@ -23,7 +23,9 @@ def parse_mcst(root: MCSTNode) -> dict[list, list]:
     Parse Monte Carlo Search Tree into graphable format.
     """
 
-    def traverse(node: MCSTNode, data: dict[list, list], parent_id: int) -> dict[list, list]:
+    def traverse(
+        node: MCSTNode, data: dict[list, list], parent_id: int
+    ) -> dict[list, list]:
         """
         Recursive helper function to traverse the tree.
         """

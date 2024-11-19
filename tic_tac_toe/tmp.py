@@ -1,6 +1,6 @@
+from mcts.mcts import MCSTNode
+from mcts.parse_tree import parse_mcst
 from tic_tac_toe.board import TicTacToeBoard
-from tic_tac_toe.mcts import MCSTNode
-from tic_tac_toe.parse_tree import parse_mcst
 from tic_tac_toe.player import TicTacToeBot
 
 opts = {"sim_lim": 18, "c": 1.4, "win": 1.0, "lose": -1.0, "draw": 0.5}
