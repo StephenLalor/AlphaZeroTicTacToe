@@ -1,8 +1,10 @@
-import { formatNodes, formatEdges } from './vis_tree_data.js'
+import { formatNodes, formatEdges, renderBoard } from './vis_tree_data.js'
 
-// Setup.
+// Set up socket.
 const socket = io()
-const container = document.getElementById('mcts-tree')
+
+// Set up tree as network.
+const tree = document.getElementById('mcts-tree')
 const data = {
     nodes: new vis.DataSet(),
     edges: new vis.DataSet(),
@@ -19,7 +21,21 @@ const options = {
     },
     physics: false,
 }
-const network = new vis.Network(container, data, options)
+const network = new vis.Network(tree, data, options)
+
+// Set up board.
+const boardElement = document.getElementById('board')
+
+// Render board data for clicked node.
+network.on('click', function (params) {
+    if (params.nodes.length > 0) {
+        const nodeId = params.nodes[0]
+        const nodeData = data.nodes.get(nodeId)
+        console.log(`Node ID: ${nodeId}`)
+        console.log(nodeData)
+        renderBoard(boardElement, nodeData.board)
+    }
+})
 
 // Define socket connection and update behavior.
 socket.on('connect', () => {

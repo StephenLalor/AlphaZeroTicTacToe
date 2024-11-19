@@ -1,13 +1,9 @@
 import copy
 
 import numpy as np
-from loguru import logger
 
 from tic_tac_toe.board import TicTacToeBoard, TicTacToeException
 from tic_tac_toe.player import TicTacToeBot
-
-# Set up logging file.
-logger.add("tic_tac_toe/mcts.log", mode="w")
 
 
 class MCSTNode:
@@ -18,6 +14,7 @@ class MCSTNode:
     def __init__(self, parent: "MCSTNode", board: TicTacToeBoard, opts: dict):
         self.parent = parent
         self.children = []
+        self.opt_child = None
         self.board = board
         self.unused_moves = board.valid_moves
         self.visits = 0
@@ -85,15 +82,12 @@ class MCSTNode:
         """
         From the current state, play to the end to get a result.
         """
-        logger.debug(f"Node: {self}")
         board = copy.deepcopy(self.board)
-        logger.debug(f"Initial board state:\n{board}")
         while not board.game_result:
             # Directly use player's move generation (now random move).
             player = board.get_next_player()
             move = player.generate_move(board.valid_moves)
             board.exec_move(move[0])
-            logger.debug(f"New board state:\n{board}")
             if board.game_result:
                 return player if board.game_result == "win" else "draw"
         return board.game_result
@@ -127,11 +121,9 @@ class MCSTNode:
         Perform simulation and return the best action to take from the root node.
         """
         root = self  # Initial node itself is the root.
-        for sim in range(1, self.opts["sim_lim"]):
-            logger.info(f"Simulating ({sim}/{self.opts["sim_lim"]})")
+        for sim in range(1, self.opts["sim_lim"]):  # TODO: Add a time limit also.
             node = root.traverse()
             game_result = node.rollout()
             node.backpropagate(game_result)
-        best_child = root.get_best_child(0.0)
-        logger.info(best_child)
-        return best_child.board.last_move
+            yield root
+        self.opt_child = root.get_best_child(0.0)

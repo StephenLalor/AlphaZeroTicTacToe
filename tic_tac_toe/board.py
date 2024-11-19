@@ -11,7 +11,7 @@ class TicTacToeBoard:
     def __init__(self, p1: TicTacToeBot, p2: TicTacToeBot):
         self.p1 = p1
         self.p2 = p2
-        self.last_player = None  # Player 1 starts.
+        self.last_player = None
         self.dim = None
         self.state = None
         self.valid_moves = None
@@ -34,7 +34,7 @@ class TicTacToeBoard:
         self.state = np.zeros(self.dim, dtype="S1")
         self.valid_moves = [loc for loc in np.ndindex(self.state.shape)]  # List as we will make random selection later.
         self.game_result = None
-        self.last_player = self.p1
+        self.last_player = None
         self.last_move = None
 
     def update_board(self, symbol, move_loc):
@@ -71,7 +71,7 @@ class TicTacToeBoard:
         return
 
     def get_next_player(self):
-        return self.p2 if self.last_player == self.p1 else self.p1
+        return self.p1 if self.last_player in [self.p2, None] else self.p2
 
     def exec_move(self, move_loc):
         player = self.get_next_player()  # We need the right symbol.

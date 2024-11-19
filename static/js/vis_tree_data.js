@@ -32,6 +32,7 @@ export function formatNodes(treeData) {
         const nodeColor = visitsToColor(node.label.visits, maxVisits)
         return {
             id: node.id,
+            board: node.label.board,
             label: '',
             title: getNodeHover(node),
             borderWidth: 3,
@@ -62,4 +63,16 @@ export function formatEdges(treeData) {
             },
         }))
     return transformedEdges
+}
+
+export function renderBoard(boardElement, boardData) {
+    boardElement.innerHTML = '' // Clear any existing cells
+    boardData.forEach((row, rowIndex) => {
+        row.forEach((cell, colIndex) => {
+            const cellElement = document.createElement('div')
+            cellElement.className = 'cell'
+            cellElement.textContent = cell
+            boardElement.appendChild(cellElement)
+        })
+    })
 }

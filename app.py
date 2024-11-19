@@ -1,4 +1,3 @@
-import time
 from threading import Event, Thread
 
 from flask import Flask, render_template
@@ -14,9 +13,8 @@ class MCTSApp:
     def __init__(self):
         self.app = Flask(__name__)
         self.socketio = SocketIO(self.app)
-        self.thread = Thread(target=self.background_thread)
+        self.thread = None
         self.thread_stop_event = Event()
-        self.tree_data = self.generate_tree_data()
 
         @self.app.route("/")
         def index():
@@ -28,22 +26,19 @@ class MCTSApp:
 
         @self.socketio.on("update_request")
         def handle_update_request(json):
-            if not self.thread.is_alive():
-                self.thread = Thread(target=self.background_thread)
+            if not self.thread or not self.thread.is_alive():
+                self.thread = Thread(target=self.generate_tree_data)
                 self.thread.start()
 
     def generate_tree_data(self):
-        opts = {"sim_lim": 9 * 10, "c": 1.4, "win": 1.0, "lose": -1.0, "draw": 0.5}
+        opts = {"sim_lim": (9 * 10) + 1, "c": 1.4, "win": 1.0, "lose": -1.0, "draw": 0.5}
         board = TicTacToeBoard(TicTacToeBot("p1", "X", "random"), TicTacToeBot("p2", "O", "random"))
         root_node = MCSTNode(None, board, opts)
-        root_node.sim()  # TODO: add sleep between sim iters.
-        # NOTE: how do I get the data at each step out? Generator? can do below for now.
-        return parse_mcst(root_node)
-
-    def background_thread(self):
-        while not self.thread_stop_event.is_set():
-            self.socketio.emit("update_response", self.tree_data)
-            time.sleep(1)  # TODO: SLEEP DURING GENERATION INSTEAD LA
+        for root in root_node.sim():
+            update_data = parse_mcst(root)
+            self.socketio.emit("update_response", update_data)
+            # time.sleep(0.5)
+        self.socketio.emit("final_update", update_data)  # Emit the final state
 
     def run(self):
         self.socketio.run(self.app, debug=True)
