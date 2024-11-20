@@ -16,7 +16,7 @@ class MCSTNode:
         self.children = []
         self.opt_child = None
         self.board = board
-        self.unused_moves = board.valid_moves
+        self.unused_moves = board.valid_moves.copy()
         self.visits = 0
         self.value = 0
         self.opts = opts
