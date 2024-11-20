@@ -1,3 +1,4 @@
+import time
 from threading import Event, Thread
 
 from flask import Flask, render_template
@@ -9,7 +10,7 @@ from tic_tac_toe.board import TicTacToeBoard
 from tic_tac_toe.player import TicTacToeBot
 
 
-class MCTSApp:
+class TicTacToeBotApp:
     def __init__(self):
         self.app = Flask(__name__)
         self.socketio = SocketIO(self.app)
@@ -32,20 +33,20 @@ class MCTSApp:
 
     def generate_tree_data(self):
         opts = {
-            "sim_lim": (9 * 10) + 1,
+            "sim_lim": (9**3) + 1,
             "c": 1.4,
             "win": 1.0,
             "lose": -1.0,
             "draw": 0.5,
         }
-        board = TicTacToeBoard(
-            TicTacToeBot("p1", "X", "random"), TicTacToeBot("p2", "O", "random")
-        )
+        p1 = TicTacToeBot("p1", 1, "random")
+        p2 = TicTacToeBot("p2", 2, "random")
+        board = TicTacToeBoard(p1, p2)
         root_node = MCSTNode(None, board, opts)
         for root in root_node.sim():
             update_data = parse_mcst(root)
             self.socketio.emit("update_response", update_data)
-            # time.sleep(0.5)
+            time.sleep(0.2)
         self.socketio.emit("final_update", update_data)  # Emit the final state
 
     def run(self):
@@ -53,5 +54,5 @@ class MCTSApp:
 
 
 if __name__ == "__main__":
-    mcts_app = MCTSApp()
+    mcts_app = TicTacToeBotApp()
     mcts_app.run()
