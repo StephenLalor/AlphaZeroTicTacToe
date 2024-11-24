@@ -122,20 +122,20 @@ class TicTacToeNet(nn.Module):
     output of this is passed to 2 separate heads which calculate the policy and state value.
     """
 
-    def __init__(self, input_feats: Tensor, action_size: int, hparams: dict):
+    def __init__(self, input_feats: Tensor, hparams: dict):
         super().__init__()
-        self.conv_block = ConvBlock(input_feats[0].shape[0], hparams["hidden"])
+        self.action_size = input_feats.shape[2] * input_feats.shape[3]
+        self.conv_block = ConvBlock(input_feats.shape[3], hparams["hidden"])
         self.res_blocks = nn.ModuleList(
             [ResBlock(hparams["hidden"], hparams["hidden"])] * hparams["res_blocks"]
         )
-        self.policy_head = PolicyHead(hparams["hidden"], action_size, hparams["pol_feats"])
-        self.value_head = ValueHead(hparams["hidden"], action_size, hparams["val_feats"])
+        self.policy_head = PolicyHead(hparams["hidden"], self.action_size, hparams["pol_feats"])
+        self.value_head = ValueHead(hparams["hidden"], self.action_size, hparams["val_feats"])
 
-    def parse_output(self, policy, value):
+    def parse_output(self, policy: Tensor, value: Tensor) -> tuple[Tensor, float]:
         """
         Transform the raw policy and value output into actual probabilities.
         """
-        # Apply
         if policy.get_device != -1:
             parsed_policy = softmax(policy, axis=1).squeeze(0).detach().cpu().numpy()
         else:

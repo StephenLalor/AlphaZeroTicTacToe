@@ -11,7 +11,8 @@ class TicTacToeBoard:
     def __init__(self, p1: TicTacToeBot, p2: TicTacToeBot):
         self.dim = (3, 3)
         self.state = np.zeros(self.dim, dtype=np.int8)
-        self.valid_moves = [loc for loc in np.ndindex(self.state.shape)]
+        self.moves = [loc for loc in np.ndindex(self.state.shape)]
+        self.valid_moves = self.moves.copy()
         self.p1 = p1
         self.p2 = p2
         self.next_player = p1

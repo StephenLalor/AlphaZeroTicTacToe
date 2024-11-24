@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 from tic_tac_toe.board import TicTacToeBoard
@@ -26,3 +27,16 @@ def get_input_feats(board: TicTacToeBoard) -> torch.Tensor:
     stack = torch.stack([last_player_plane, next_player_plane, to_play_plane])
     # Add batch dimension.
     return stack.unsqueeze(0)
+
+
+def policy_to_valid_moves(policy: np.ndarray, all_moves: list, valid_moves: list) -> dict:
+    """
+    Set probabilities for invalid moves in the policy to zero and return a mapping from move to the
+    move's probability.
+    """
+    # Mask invalid moves so they have probability of zero.
+    moves_mask = [1 if move in valid_moves else 0 for move in all_moves]
+    masked_policy = moves_mask * policy
+    masked_policy = masked_policy / np.sum(masked_policy)  # Re-norm probabilities.
+    # Map moves to their probabilities.
+    return {move: prob for move, prob in zip(all_moves, masked_policy.tolist()) if prob > 0}

@@ -1,7 +1,9 @@
-from mcts.mcts import MCSTNode
+# TODO: This should probably not be here, and be a method instead.
+
+from mcts.brute_mcts import BruteMCSTNode
 
 
-def parse_mcst_node(node: MCSTNode) -> dict:
+def parse_mcst_node(node: BruteMCSTNode) -> dict:
     parsed_node = {
         "visits": node.visits if node.visits else None,
         "value": node.value if node.value else None,
@@ -12,7 +14,7 @@ def parse_mcst_node(node: MCSTNode) -> dict:
     return parsed_node
 
 
-def parse_mcst(root: MCSTNode) -> dict[list, list]:
+def parse_mcst(root: BruteMCSTNode) -> dict[list, list]:
     """
     Parse Monte Carlo Search Tree into graphable format.
     """
