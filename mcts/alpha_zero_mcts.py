@@ -8,7 +8,7 @@ import torch
 
 from neural_networks.data_prep import get_input_feats, policy_to_valid_moves
 from neural_networks.tic_tac_toe_net import TicTacToeNet
-from tic_tac_toe.board import TicTacToeBoard, TicTacToeException
+from tic_tac_toe.board import TicTacToeBoard, assign_reward
 
 logger = logging.getLogger("myapp.module")
 
@@ -26,18 +26,18 @@ class SmartMCSTNode:
         prior_prob: float,
         board: TicTacToeBoard,
         model: TicTacToeNet,
-        opts: dict,
+        cfg: dict,
     ):
         self.uuid = uuid.uuid4()
         self.parent = parent
         self.children = []
-        self.actions = None
+        self.action_probs = None
         self.board = board
         self.visits = 0
         self.value = 0
         self.score = 0  # Selection score.
         self.prior = prior_prob
-        self.opts = opts
+        self.cfg = cfg
         self.model = model
 
     def __str__(self):
@@ -46,8 +46,8 @@ class SmartMCSTNode:
         struct_info = f"[Parent]: {has_parent} [Children]: {len(self.children)}"
         last_info = f"[Last Player]: {last_player.name} [Last Move]: {last_move}"
         uct_info = f"[Visits]: {self.visits} [Value]: {self.value}"
-        prior_info = f"[Prior]: ~{np.round(self.prior, 3) if self.prior is not None else 0}"
-        score_info = f"[Score]: ~{np.round(self.score, 3) if self.score is not None else 0}"
+        prior_info = f"[Prior]: {np.round(self.prior, 3) if self.prior is not None else 0}"
+        score_info = f"[Score]: {np.round(self.score, 3) if self.score is not None else 0}"
         return f"{struct_info} | {uct_info} | {last_info} | {prior_info} | {score_info}"
 
     def is_fully_expanded(self):
@@ -90,11 +90,13 @@ class SmartMCSTNode:
         for move, prob in policy.items():
             new_board = copy.deepcopy(self.board)
             new_board.exec_move(move)
-            self.children.append(SmartMCSTNode(self, prob, new_board, self.model, self.opts))
+            self.children.append(SmartMCSTNode(self, prob, new_board, self.model, self.cfg))
 
     def backpropagate(self, value: float):
         """
         From current node back up to the root node, update stats.
+
+        If the child node wins, then this node must have lost. Hence we negate the reward.
         """
         node = self  # Starting at the current node.
         while node is not None:
@@ -110,26 +112,18 @@ class SmartMCSTNode:
         """
         Calculate reward for a terminated game.
         """
-        if self.board.game_result == "draw":
-            logger.debug(f"Game result draw. Assigning reward {self.opts['draw']}")
-            return self.opts["draw"]
-        if self.board.last_player == self.board.game_result:
-            logger.debug(f"Game result win. Assigning reward {self.opts['win']}")
-            return self.opts["win"]
-        if self.board.last_player != self.board.game_result:
-            logger.debug(f"Game result lose. Assigning reward {self.opts['lose']}")
-            return self.opts["lose"]
-        # Error if result not as expected.
-        allowed = [self.board.p1, self.board.p2, "draw"]
-        err_msg = f"Game result {self.board.game_result} not one of {allowed}"
-        raise TicTacToeException(err_msg)
+        player = self.board.last_player  # Player who moved last.
+        res = self.board.game_result
+        return assign_reward(player, player, res, self.cfg["rewards"])
 
-    def get_action_prob_dist(self):
+    def get_action_prob_dist(self) -> tuple[np.array, np.array]:
         """
         Get normalised action probability based on number of visits for each child node.
         """
-        tot = sum(child.visits for child in self.children)
-        return {child.board.last_move: (child.visits / tot) for child in self.children}
+        tot_visits = sum(child.visits for child in self.children)
+        actions = np.array([child.board.last_move for child in self.children])
+        probs = np.array([child.visits / tot_visits for child in self.children])
+        return (actions, probs)
 
     @torch.no_grad()
     def search(self):
@@ -153,7 +147,7 @@ class SmartMCSTNode:
         """
         root = self
         logger.info(f"Beggining search. \n\t{root}.")
-        for sim in range(1, self.opts["sim_lim"] + 1):  # TODO: Add a time limit also.
+        for sim in range(1, self.cfg["sim_lim"] + 1):  # TODO: Add a time limit also.
             # Begin each simulation at the root node.
             logger.debug(f"Search iteration {sim}.")
             node = root
@@ -161,7 +155,7 @@ class SmartMCSTNode:
             # Selection phase.
             while node.is_fully_expanded():  # Skipped on first simulation.
                 logger.debug(f"Fully expanded, doing selection on {node.uuid} \n\t{node}.")
-                node = node.select(self.opts["c"])
+                node = node.select(self.cfg["c"])
                 logger.debug(f"Selected node {node.uuid} \n\t{node}.")
 
             # Expansion phase.
@@ -190,12 +184,12 @@ class SmartMCSTNode:
             yield root
 
         # Get probability distribution of all actions available from root.
-        self.actions = root.get_action_prob_dist()
+        self.action_probs = root.get_action_prob_dist()
 
-    def run_search(self):
+    def run_search(self) -> tuple[np.array, np.array]:
         """
         Utility to run the generator to exhaustion.
         """
         # Yield but do not store by using zero max length.
-        deque(self.search(), maxlen=0)
-        return self.actions
+        deque(self.search(), maxlen=0)  # Efficiently exhausts generator.
+        return self.action_probs
