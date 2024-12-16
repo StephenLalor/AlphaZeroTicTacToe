@@ -1,0 +1,15 @@
+# NN config.
+hparams:
+    hidden: 64
+    res_blocks: 4
+    pol_feats: 32
+    val_feats: 3
+
+# MCTS config.
+opts:
+    sim_lim: 81
+    c: 0.1
+    win: 1.0
+    lose: -1.0
+    draw: 0.5
+    tau: 1
