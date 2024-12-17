@@ -20,9 +20,9 @@ def get_input_feats(board: TicTacToeBoard) -> torch.Tensor:
     next_player_plane = state == board.next_player.symbol
     # Create to-play plane.
     if board.next_player == board.p1:
-        to_play_plane = torch.ones(board.dim)
+        to_play_plane = torch.ones(board.dim, dtype=torch.float32)
     else:
-        to_play_plane = torch.zeros(board.dim)
+        to_play_plane = torch.zeros(board.dim, dtype=torch.float32)
     # Stack planes to create input features.
     stack = torch.stack([last_player_plane, next_player_plane, to_play_plane])
     # Add batch dimension.
