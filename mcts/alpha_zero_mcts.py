@@ -121,8 +121,12 @@ class SmartMCSTNode:
         Get normalised action probability based on number of visits for each child node.
         """
         tot_visits = sum(child.visits for child in self.children)
-        actions = np.array([child.board.last_move for child in self.children])
-        probs = np.array([child.visits / tot_visits for child in self.children])
+        probs = np.zeros(len(self.board.moves), dtype=np.float32)
+        actions_map = {action: i for i, action in enumerate(self.board.moves)}
+        for child in self.children:
+            if child.board.last_move in actions_map:
+                probs[actions_map[child.board.last_move]] = child.visits / tot_visits
+        actions = np.array(self.board.moves)
         return (actions, probs)
 
     @torch.no_grad()
