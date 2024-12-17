@@ -1,5 +1,6 @@
 notes.txt
 tmp.py
+models/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
