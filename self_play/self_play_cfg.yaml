@@ -9,7 +9,7 @@ nn:
 # MCTS config.
 mcts:
     sim_lim: 30
-    c: 1.4
+    c: 0.5
     tau: 1
     rewards:
         win: 1.0

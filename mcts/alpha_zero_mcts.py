@@ -151,7 +151,7 @@ class SmartMCSTNode:
         """
         root = self
         logger.info(f"Beggining search. \n\t{root}.")
-        for sim in range(1, self.cfg["sim_lim"] + 1):  # TODO: Add a time limit also.
+        for sim in range(1, self.cfg["sim_lim"] + 1):
             # Begin each simulation at the root node.
             logger.debug(f"Search iteration {sim}.")
             node = root
