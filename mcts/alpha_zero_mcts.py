@@ -100,13 +100,12 @@ class SmartMCSTNode:
         """
         node = self  # Starting at the current node.
         while node is not None:
+            # Update metrics for the current node.
             node.visits += 1
-            # Avoid updating score if we're on the root node.
-            if node.parent:
-                node.value += value
-            # Parent node is alternate player, so negate value.
-            value = -value
+            node.value += value
+            # Traverse up to parent.
             node = node.parent
+            value = -value  # Negate value as player has switched.
 
     def get_reward(self) -> float:
         """
