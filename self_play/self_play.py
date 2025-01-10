@@ -4,8 +4,9 @@ import logging
 import numpy as np
 import torch
 from torch.nn.functional import cross_entropy, mse_loss
-from torch.optim import AdamW
+from torch.optim import Adam
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 from mcts.alpha_zero_mcts import SmartMCSTNode
 from neural_networks.data_prep import get_input_feats
@@ -21,12 +22,30 @@ class TicTacToeTrainer:
     def __init__(self, cfg: dict):
         self.cfg = cfg
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Set up initial clean game state.
         self.clean_board = TicTacToeBoard(
             TicTacToeBot("p1", 1, "random"), TicTacToeBot("p2", 2, "random")
         )
+        # Set up NN and optimiser parameter groups.
         self.model = TicTacToeNet(get_input_feats(self.clean_board), cfg["nn"])
-        self.optimiser = AdamW(self.model.parameters(), lr=1e-3, weight_decay=1e-5)
+        self.optimiser = Adam(
+            [
+                {"params": self.model.policy_head.parameters(), "lr": 1e-4},
+                {"params": self.model.value_head.parameters(), "lr": 1e-6},
+                {
+                    "params": [
+                        param
+                        for name, param in self.model.named_parameters()
+                        if "policy_head" not in name and "value_head" not in name
+                    ],
+                    "lr": 1e-4,
+                },
+            ]
+        )
         self.rng = np.random.default_rng()  # For stochastic selection.
+        # Set up Tensorboard.
+        self.writer = SummaryWriter("models")
+        self.total_steps = 0
 
     def self_play(self) -> GameData:
         # Board, action probabilities and reward for each turn.
@@ -52,36 +71,57 @@ class TicTacToeTrainer:
         training_data.to(self.device)
         batch_size = self.cfg["nn"]["batch_size"]
         train_loader = DataLoader(training_data, batch_size, True, collate_fn=collate_game_data)
+        val_loss_hist, pol_loss_hist, tot_loss_hist = [], [], []
+
         # Training loop.
         for i, (batch_states, batch_pol_targets, batch_rewards) in enumerate(train_loader):
+            print(f"Training loop iteration {i}")
             # Forward pass predict policy and value.
             pred_policy, pred_value = self.model(batch_states)
             pred_policy = pred_policy.to(self.device)
             pred_value = pred_value.to(self.device)
             # Compute loss vs self play results.
-            policy_loss = cross_entropy(pred_policy, batch_pol_targets)
-            value_loss = mse_loss(pred_value.squeeze(), batch_rewards)
-            total_loss = policy_loss + value_loss
+            pol_loss = cross_entropy(pred_policy, batch_pol_targets)
+            val_loss = mse_loss(pred_value.squeeze(), batch_rewards)
+            tot_loss = pol_loss + val_loss
             # Optimise.
             self.optimiser.zero_grad()  # Reset for new sample.
-            total_loss.backward()
+            tot_loss.backward()
             self.optimiser.step()  # Update gradients.
+            self.total_steps += 1
 
-        return total_loss
+            # Log total training loss.
+            tot_loss_hist.append(tot_loss.item())
+            self.writer.add_scalar("Loss/TotalLoss", tot_loss.item(), self.total_steps)
+            # Log policy training loss.
+            pol_loss_hist.append(pol_loss.item())
+            self.writer.add_scalar("Loss/PolicyLoss", pol_loss.item(), self.total_steps)
+            # Log value training loss.
+            val_loss_hist.append(val_loss.item())
+            self.writer.add_scalar("Loss/ValueLoss", val_loss.item(), self.total_steps)
+
+        return np.array(val_loss_hist), np.array(pol_loss_hist), np.array(tot_loss_hist)
 
     def learn(self):
         for cycle in range(self.cfg["self_play"]["cycles"]):
-            training_data = GameDataset()
             # Begin self play cycle.
+            print(f"--------- Cycle {cycle} ---------")
+            training_data = GameDataset()
             self.model.eval()  # Eval mode as not training yet.
             for playout in range(self.cfg["self_play"]["playouts"]):
                 game = self.self_play()
                 training_data.append_game(game)
+
             # Begin training using self play data.
             self.model.train()  # Training mode as we now will train.
             for epoch in range(self.cfg["self_play"]["epochs"]):
-                epoch_loss = self.train(training_data)
-                print(f"Loss for epoch {epoch}: {epoch_loss}")
-            # Save model
-            torch.save(self.model.state_dict(), f"models/model_{str(cycle)}.pt")
+                val_loss_hist, pol_loss_hist, tot_loss_hist = self.train(training_data)
+                self.writer.add_scalar("Epoch/TotalLoss", tot_loss_hist.mean(), self.total_steps)
+                self.writer.add_scalar("Epoch/PolicyLoss", pol_loss_hist.mean(), self.total_steps)
+                self.writer.add_scalar("Epoch/ValueLoss", val_loss_hist.mean(), self.total_steps)
+
+            # Save model and add to tensorboard.
+            mdl_name = f"models/model_{str(cycle)}"
+            torch.save(self.model.state_dict(), f"{mdl_name}.pt")
             torch.save(self.optimiser.state_dict(), f"models/optimiser_{str(cycle)}.pt")
+            self.writer.add_graph(self.model, get_input_feats(self.clean_board))

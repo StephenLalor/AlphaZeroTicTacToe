@@ -8,8 +8,8 @@ nn:
 
 # MCTS config.
 mcts:
-    sim_lim: 30
-    c: 0.5
+    sim_lim: 125
+    c: 1.2
     tau: 1
     rewards:
         win: 1.0
@@ -19,5 +19,5 @@ mcts:
 # Self play config.
 self_play:
     cycles: 3
-    playouts: 100
-    epochs: 4
+    playouts: 640
+    epochs: 6
