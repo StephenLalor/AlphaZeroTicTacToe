@@ -42,3 +42,20 @@ def print_tree(root: SmartMCSTNode) -> None:
         for node in level_nodes:
             print(node)
     return
+
+
+def flatten_dict(to_flatten: dict, parent_key="", sep=".") -> dict:
+    """
+    Recursively flatten dict containing nested dicts.
+    """
+    items = []
+    for k, v in to_flatten.items():
+        # Concat parent key to nested dict key.
+        new_key = parent_key + sep + k if parent_key else k
+        # Recursively flatten nested dicts.
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        # Add new key value pair to the result.
+        else:
+            items.append((new_key, v))
+    return dict(items)

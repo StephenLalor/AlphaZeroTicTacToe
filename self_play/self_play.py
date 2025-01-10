@@ -19,8 +19,9 @@ logger = logging.getLogger("myapp.module")
 
 
 class TicTacToeTrainer:
-    def __init__(self, cfg: dict):
+    def __init__(self, cfg: dict, path: str):
         self.cfg = cfg
+        self.path = path
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # Set up initial clean game state.
         self.clean_board = TicTacToeBoard(
@@ -37,7 +38,7 @@ class TicTacToeTrainer:
         )
         self.rng = np.random.default_rng()  # For stochastic selection.
         # Set up Tensorboard.
-        self.writer = SummaryWriter("models")
+        self.writer = SummaryWriter(path)
         self.total_steps = 0
 
     def self_play(self) -> GameData:
@@ -109,12 +110,22 @@ class TicTacToeTrainer:
             self.model.train()  # Training mode as we now will train.
             for epoch in range(self.cfg["self_play"]["epochs"]):
                 val_loss_hist, pol_loss_hist, tot_loss_hist = self.train(training_data)
-                self.writer.add_scalar("Epoch/TotalLoss", tot_loss_hist.mean(), self.total_steps)
-                self.writer.add_scalar("Epoch/PolicyLoss", pol_loss_hist.mean(), self.total_steps)
-                self.writer.add_scalar("Epoch/ValueLoss", val_loss_hist.mean(), self.total_steps)
+                # Aggregate metrics for this epoch.
+                metrics = {
+                    "tot_loss": tot_loss_hist.mean().item(),
+                    "pol_loss": pol_loss_hist.mean().item(),
+                    "val_loss": val_loss_hist.mean().item(),
+                }
+                # Log epoch loss metrics.
+                self.writer.add_scalar("Epoch/TotalLoss", metrics["tot_loss"], self.total_steps)
+                self.writer.add_scalar("Epoch/PolicyLoss", metrics["pol_loss"], self.total_steps)
+                self.writer.add_scalar("Epoch/ValueLoss", metrics["val_loss"], self.total_steps)
 
             # Save model and add to tensorboard.
-            mdl_name = f"models/model_{str(cycle)}"
-            torch.save(self.model.state_dict(), f"{mdl_name}.pt")
-            torch.save(self.optimiser.state_dict(), f"models/optimiser_{str(cycle)}.pt")
-            self.writer.add_graph(self.model, get_input_feats(self.clean_board))
+            torch.save(self.model.state_dict(), f"{self.path}/model_{str(cycle)}.pt")
+            torch.save(self.optimiser.state_dict(), f"{self.path}/optimiser_{str(cycle)}.pt")
+
+        # Log hyperparameters with final epoch loss metrics.
+        # self.writer.add_hparams(flatten_dict(self.cfg), metrics)  # NOTE: add_hparams() is buggy.
+        self.writer.add_graph(self.model, get_input_feats(self.clean_board))
+        self.writer.close()
