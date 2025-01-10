@@ -143,10 +143,23 @@ class TicTacToeNet(nn.Module):
         parsed_value = value.item()
         return parsed_policy, parsed_value
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         x = self.conv_block(x)
         for res_block in self.res_blocks:
             x = res_block(x)
         policy = self.policy_head(x)
         value = self.value_head(x)
         return policy, value
+
+    def get_pol_param_grp(self) -> list[Tensor]:
+        return list(self.policy_head.parameters())
+
+    def get_val_param_grp(self) -> list[Tensor]:
+        return list(self.value_head.parameters())
+
+    def get_oth_param_grp(self) -> list[Tensor]:
+        oth_params = []
+        for name, param in self.named_parameters():
+            if "policy_head" not in name and "value_head" not in name:
+                oth_params.append(param)
+        return oth_params

@@ -5,6 +5,9 @@ nn:
     pol_feats: 32
     val_feats: 3
     batch_size: 64
+    pol_lr: 0.0001
+    val_lr: 0.000001
+    oth_lr: 0.0001
 
 # MCTS config.
 mcts:

@@ -149,7 +149,7 @@ class SmartMCSTNode:
             - Nodes along this path have visit counts and values updated.
         """
         root = self
-        logger.info(f"Beggining search. \n\t{root}.")
+        logger.debug(f"Beggining search. \n\t{root}.")
         for sim in range(1, self.cfg["sim_lim"] + 1):
             # Begin each simulation at the root node.
             logger.debug(f"Search iteration {sim}.")

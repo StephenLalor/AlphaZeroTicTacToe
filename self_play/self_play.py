@@ -30,16 +30,9 @@ class TicTacToeTrainer:
         self.model = TicTacToeNet(get_input_feats(self.clean_board), cfg["nn"])
         self.optimiser = Adam(
             [
-                {"params": self.model.policy_head.parameters(), "lr": 1e-4},
-                {"params": self.model.value_head.parameters(), "lr": 1e-6},
-                {
-                    "params": [
-                        param
-                        for name, param in self.model.named_parameters()
-                        if "policy_head" not in name and "value_head" not in name
-                    ],
-                    "lr": 1e-4,
-                },
+                {"params": self.model.get_pol_param_grp(), "lr": cfg["nn"]["pol_lr"]},
+                {"params": self.model.get_val_param_grp(), "lr": cfg["nn"]["val_lr"]},
+                {"params": self.model.get_oth_param_grp(), "lr": cfg["nn"]["oth_lr"]},
             ]
         )
         self.rng = np.random.default_rng()  # For stochastic selection.
