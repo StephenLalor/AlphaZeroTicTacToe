@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 
 from neural_networks.data_prep import get_input_feats
 from tic_tac_toe.board import TicTacToeBoard, assign_reward
@@ -52,9 +53,17 @@ class GameDataset(torch.utils.data.Dataset):
         for game in self.games:
             game.to(device)
 
+    def _collate(self, batch: list[GameData]):
+        """
+        Split game data into tensors of game states, policy targets and value targets (rewards).
+        """
+        batch_states = torch.cat([game.states for game in batch], dim=0)
+        batch_pol_targets = torch.cat([game.pol_targets for game in batch], dim=0)
+        batch_rewards = torch.cat([game.rewards for game in batch], dim=0)
+        return batch_states, batch_pol_targets, batch_rewards
 
-def collate_game_data(batch: list[GameData]):
-    batch_states = torch.cat([game.states for game in batch], dim=0)
-    batch_pol_targets = torch.cat([game.pol_targets for game in batch], dim=0)
-    batch_rewards = torch.cat([game.rewards for game in batch], dim=0)
-    return batch_states, batch_pol_targets, batch_rewards
+    def to_loader(self, batch_size: int) -> DataLoader:
+        """
+        Convert game data to batch loader with shuffling.
+        """
+        return DataLoader(self, batch_size, shuffle=True, collate_fn=self._collate)

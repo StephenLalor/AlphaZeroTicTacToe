@@ -1,0 +1,32 @@
+# Experiment config.
+exp:
+    name: 'test_1'
+    uri: 'http://localhost:5000'
+    log_period: 5
+
+# NN config.
+nn:
+    hidden: 64
+    res_blocks: 4
+    pol_feats: 32
+    val_feats: 3
+    batch_size: 5
+    pol_lr: 0.0001
+    val_lr: 0.000001
+    oth_lr: 0.0001
+
+# MCTS config.
+mcts:
+    sim_lim: 10
+    c: 1.2
+    tau: 1
+    rewards:
+        win: 1.0
+        lose: -1.0
+        draw: 0.5
+
+# Self play config.
+self_play:
+    cycles: 2
+    playouts: 25
+    epochs: 3

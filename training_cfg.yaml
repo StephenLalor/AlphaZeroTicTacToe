@@ -1,3 +1,8 @@
+# Experiment config.
+exp:
+    name: 'test_1'
+    uri: 'http://localhost:5000'
+
 # NN config.
 nn:
     hidden: 64
