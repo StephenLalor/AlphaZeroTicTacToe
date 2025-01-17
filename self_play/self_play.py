@@ -48,8 +48,8 @@ class TicTacToeTrainer:
         board = copy.deepcopy(self.clean_board)
         while not board.game_result:
             # Begin search from the current position.
-            mct = SmartMCSTNode(None, None, board, self.model, self.cfg["mcts"])
-            actions, probs = mct.run_search()
+            mct = SmartMCSTNode(None, None, board, self.cfg["mcts"])
+            actions, probs = mct.search(self.model)
             # Do stochastic move selection and execute.
             action = self.rng.choice(actions, p=probs)
             board.exec_move(tuple(action))

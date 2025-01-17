@@ -1,7 +1,6 @@
 import copy
 import logging
 import uuid
-from collections import deque
 
 import numpy as np
 import torch
@@ -25,20 +24,17 @@ class SmartMCSTNode:
         parent: "SmartMCSTNode",
         prior_prob: float,
         board: TicTacToeBoard,
-        model: TicTacToeNet,
         cfg: dict,
     ):
         self.uuid = uuid.uuid4()
         self.parent = parent
         self.children = []
-        self.action_probs = None
         self.board = board
         self.visits = 0
         self.value = 0
         self.score = 0  # Selection score.
         self.prior = prior_prob
         self.cfg = cfg
-        self.model = model
 
     def __str__(self):
         has_parent = self.parent is not None
@@ -71,11 +67,10 @@ class SmartMCSTNode:
         """
         best_child_node, best_score = None, -np.inf
         for child in self.children:
-            score = self.calc_selection_score(child, c_puct)
-            child.score = score
-            if score > best_score:
+            child.score = self.calc_selection_score(child, c_puct)
+            if child.score > best_score:
                 logger.debug(f"New best selection score {child.uuid} \n\t{child}.")
-                best_score, best_child_node = score, child
+                best_score, best_child_node = child.score, child
         if best_child_node is None:
             raise ValueError("Failed to find best child node.")
         return best_child_node
@@ -90,7 +85,7 @@ class SmartMCSTNode:
         for move, prob in policy.items():
             new_board = copy.deepcopy(self.board)
             new_board.exec_move(move)
-            self.children.append(SmartMCSTNode(self, prob, new_board, self.model, self.cfg))
+            self.children.append(SmartMCSTNode(self, prob, new_board, self.cfg))
 
     def backpropagate(self, value: float):
         """
@@ -129,7 +124,7 @@ class SmartMCSTNode:
         return (actions, probs)
 
     @torch.no_grad()
-    def search(self):
+    def search(self, model: TicTacToeNet) -> tuple:
         """
         Selection:
             - Starting from the root, recursively select child nodes using the UCT formula.
@@ -149,7 +144,7 @@ class SmartMCSTNode:
             - Nodes along this path have visit counts and values updated.
         """
         root = self
-        logger.debug(f"Beggining search. \n\t{root}.")
+        logger.debug(f"Beginning search. \n\t{root}.")
         for sim in range(1, self.cfg["sim_lim"] + 1):
             # Begin each simulation at the root node.
             logger.debug(f"Search iteration {sim}.")
@@ -168,8 +163,8 @@ class SmartMCSTNode:
                     logger.debug("Game state not terminal. Doing evaluation with NN.")
                     # Evaluation - use predicted reward from value head.
                     input_feats = get_input_feats(node.board)
-                    policy, value = self.model(input_feats)
-                    policy, value = self.model.parse_output(policy, value)
+                    policy, value = model(input_feats)
+                    policy, value = model.parse_output(policy, value)
                     logger.debug(f"\tPolicy: {policy} Value: {value}.")
                     # Expansion.
                     logger.debug(f"Expanding {node.uuid} \n\t{node}")
@@ -183,16 +178,6 @@ class SmartMCSTNode:
             # Update phase.
             logger.debug(f"Updating from {node.uuid} \n\t{node}")
             node.backpropagate(value)
-            # Yield so we can request next step from front end.
-            yield root
 
         # Get probability distribution of all actions available from root.
-        self.action_probs = root.get_action_prob_dist()
-
-    def run_search(self) -> tuple[np.array, np.array]:
-        """
-        Utility to run the generator to exhaustion.
-        """
-        # Yield but do not store by using zero max length.
-        deque(self.search(), maxlen=0)  # Efficiently exhausts generator.
-        return self.action_probs
+        return root.get_action_prob_dist()

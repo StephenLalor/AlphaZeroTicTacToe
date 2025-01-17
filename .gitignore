@@ -1,5 +1,5 @@
 notes.txt
-tmp.py
+tmp_*.py
 models/*
 test_*.py
 mlartifacts/*
