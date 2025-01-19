@@ -1,9 +1,9 @@
 # TODO: This should probably not be here, and be a method instead.
 
-from mcts.alpha_zero_mcts import SmartMCSTNode
+from mcts.mcst_node import MCSTNode
 
 
-def parse_mcst_node(node: SmartMCSTNode) -> dict:
+def parse_mcst_node(node: MCSTNode) -> dict:
     parsed_node = {
         "visits": node.visits if node.visits else None,
         "value": node.value if node.value else None,
@@ -14,7 +14,7 @@ def parse_mcst_node(node: SmartMCSTNode) -> dict:
     return parsed_node
 
 
-def parse_mcst(root: SmartMCSTNode) -> dict[list, list]:
+def parse_mcst(root: MCSTNode) -> dict[list, list]:
     """
     Parse Monte Carlo Search Tree into graphable format.
     """

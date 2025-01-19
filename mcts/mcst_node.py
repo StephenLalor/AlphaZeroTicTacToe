@@ -12,7 +12,7 @@ from tic_tac_toe.board import TicTacToeBoard, assign_reward
 logger = logging.getLogger("myapp.module")
 
 
-class SmartMCSTNode:
+class MCSTNode:
     """
     Monte Carlo Search Tree Node.
 
@@ -21,7 +21,7 @@ class SmartMCSTNode:
 
     def __init__(
         self,
-        parent: "SmartMCSTNode",
+        parent: "MCSTNode",
         prior_prob: float,
         board: TicTacToeBoard,
         cfg: dict,
@@ -49,7 +49,7 @@ class SmartMCSTNode:
     def is_fully_expanded(self):
         return len(self.children) > 0
 
-    def calc_selection_score(self, child: "SmartMCSTNode", c_puct: float) -> float:
+    def calc_selection_score(self, child: "MCSTNode", c_puct: float) -> float:
         """
         Calculate score using PUCT and mean value for child WRT parent node.
 
@@ -61,7 +61,7 @@ class SmartMCSTNode:
         logger.debug(f"Q: {q_value}, PUCT: {puct}")
         return q_value + puct
 
-    def select(self, c_puct: float) -> "SmartMCSTNode":
+    def select(self, c_puct: float) -> "MCSTNode":
         """
         Choose child with highest selection score.
         """
@@ -85,7 +85,7 @@ class SmartMCSTNode:
         for move, prob in policy.items():
             new_board = copy.deepcopy(self.board)
             new_board.exec_move(move)
-            self.children.append(SmartMCSTNode(self, prob, new_board, self.cfg))
+            self.children.append(MCSTNode(self, prob, new_board, self.cfg))
 
     def backpropagate(self, value: float):
         """
