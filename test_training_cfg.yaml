@@ -1,6 +1,6 @@
 # Experiment config.
 exp:
-    name: 'test_1'
+    name: 'test_2'
     uri: 'http://localhost:5000'
     log_period: 5
 

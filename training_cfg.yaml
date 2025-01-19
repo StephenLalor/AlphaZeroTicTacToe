@@ -1,7 +1,8 @@
 # Experiment config.
 exp:
-    name: 'test_1'
+    name: 'test_2'
     uri: 'http://localhost:5000'
+    log_period: 10
 
 # NN config.
 nn:
@@ -16,7 +17,7 @@ nn:
 
 # MCTS config.
 mcts:
-    sim_lim: 125
+    sim_lim: 75
     c: 1.2
     tau: 1
     rewards:
@@ -26,6 +27,6 @@ mcts:
 
 # Self play config.
 self_play:
-    cycles: 3
-    playouts: 640
-    epochs: 6
+    cycles: 5
+    playouts: 1152
+    epochs: 12
