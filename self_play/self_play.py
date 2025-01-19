@@ -27,9 +27,7 @@ class TicTacToeTrainer:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.workers = mp.cpu_count()
         # Set up initial clean game state.
-        self.clean_board = TicTacToeBoard(
-            TicTacToeBot("p1", 1, "random"), TicTacToeBot("p2", 2, "random")
-        )
+        self.clean_board = TicTacToeBoard(TicTacToeBot("p1", "X"), TicTacToeBot("p2", "O"))
         # Set up NN and optimiser parameter groups.
         self.model = TicTacToeNet(get_input_feats(self.clean_board), cfg["nn"])
         self.optimiser = Adam(

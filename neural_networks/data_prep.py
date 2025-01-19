@@ -16,8 +16,8 @@ def get_input_feats(board: TicTacToeBoard) -> torch.Tensor:
     # TODO: Use tensor for board state to begin with.
     state = torch.from_numpy(board.state)
     # Create player planes.
-    last_player_plane = state == board.last_player.symbol
-    next_player_plane = state == board.next_player.symbol
+    last_player_plane = state == board.last_player.val
+    next_player_plane = state == board.next_player.val
     # Create to-play plane.
     if board.next_player == board.p1:
         to_play_plane = torch.ones(board.dim, dtype=torch.float32)

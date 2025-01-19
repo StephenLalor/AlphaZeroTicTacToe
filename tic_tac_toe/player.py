@@ -1,19 +1,16 @@
-import random
+from typing import Literal
 
 
 class TicTacToeBot:
-    def __init__(self, name, symbol, strategy):
+    def __init__(self, name: str, symbol: Literal["X", "O"]):
+        """
+        TicTacToe player, storing player name, symbol and value associated with symbol.
+        """
+        if symbol not in ("X", "O"):
+            raise ValueError("Symbol not 'X' or 'O'")
         self.name = name
-        self.symbol = symbol
-        self.strategy = strategy
+        self.symbol = symbol  # Display only.
+        self.val = {"X": 1, "O": 2}
 
-    def __str__(self):
-        return f"Name: {self.name}, Sym: {self.symbol}, Strat: {self.strategy}"
-
-    def generate_move(self, valid_moves):
-        if self.strategy == "random":
-            move = self.generate_random_move(valid_moves)
-        return move
-
-    def generate_random_move(self, valid_moves):
-        return (random.choice(valid_moves), self.symbol)  # TODO: Seed this.
+    def __repr__(self):
+        return f"TicTacToeBot(name={self.name}, symbol={self.symbol})"

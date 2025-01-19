@@ -74,7 +74,7 @@ class TicTacToeBoard:
 
     def exec_move(self, move_loc):
         # Next player makes their move.
-        self.update_board(self.next_player.symbol, move_loc)
+        self.update_board(self.next_player.val, move_loc)
         # Rotate players so player who just played is last_player.
         self.next_player, self.last_player = self.last_player, self.next_player
         self.last_move = move_loc
