@@ -3,23 +3,35 @@ import torch
 from torch.utils.data import DataLoader
 
 from neural_networks.data_prep import get_input_feats
-from tic_tac_toe.board import TicTacToeBoard, assign_reward
+from self_play.reward_assignment import assign_reward
+from tic_tac_toe.board import TicTacToeBoard
 from tic_tac_toe.player import TicTacToeBot
 
 
 class GameData:
+    """
+    Container for turn data during a single self-play game.
+    """
+
     def __init__(self):
         self.states = []
         self.pol_targets = []
         self.rewards = []
         self.players = []
+        self.is_finalised: bool = False
 
     def append_turn(self, board: TicTacToeBoard, probs: np.array, player: TicTacToeBot):
+        """
+        Add all information for a turn.
+        """
         self.states.append(get_input_feats(board).squeeze(0))
         self.pol_targets.append(torch.from_numpy(probs))
         self.players.append(player)
 
     def finalise(self, last: TicTacToeBot, res: TicTacToeBot | str, rewards_cfg: dict):
+        """
+        Propagate reward to all turns in the game, and cast data to tensors.
+        """
         # Add reward for each turn.
         for turn in range(len(self.players)):
             reward = assign_reward(last, self.players[turn], res, rewards_cfg)
@@ -29,14 +41,23 @@ class GameData:
         self.states = torch.stack(self.states)
         self.pol_targets = torch.stack(self.pol_targets)
         self.rewards = torch.stack(self.rewards)
+        self.is_finalised = True
 
     def to(self, device: str):
-        self.states = self.states.to(device)
-        self.pol_targets = self.pol_targets.to(device)
-        self.rewards = self.rewards.to(device)
+        """
+        Utility to do device conversion for all tensors.
+        """
+        if self.is_finalised:
+            self.states = self.states.to(device)
+            self.pol_targets = self.pol_targets.to(device)
+            self.rewards = self.rewards.to(device)
 
 
 class GameDataset(torch.utils.data.Dataset):
+    """
+    Torch Dataset of game data for use in torch DataLoader.
+    """
+
     def __init__(self):
         self.games = []
 
@@ -47,9 +68,15 @@ class GameDataset(torch.utils.data.Dataset):
         return self.games[i]
 
     def append_game(self, game: GameData):
+        """
+        Add a single game's data to the list of games data.
+        """
         self.games.append(game)
 
     def to(self, device: str):
+        """
+        Utility to do device conversion for all tensors.
+        """
         for game in self.games:
             game.to(device)
 
