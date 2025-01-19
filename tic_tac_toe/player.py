@@ -10,7 +10,7 @@ class TicTacToeBot:
             raise ValueError("Symbol not 'X' or 'O'")
         self.name = name
         self.symbol = symbol  # Display only.
-        self.val = {"X": 1, "O": 2}
+        self.val = 1 if self.symbol == "X" else 2
 
     def __repr__(self):
         return f"TicTacToeBot(name={self.name}, symbol={self.symbol})"
