@@ -1,5 +1,5 @@
 {
-    "python.testing.pytestArgs": ["TicTacToeBot/tests"],
+    "python.testing.pytestArgs": ["tests"],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
     "python.envFile": "${workspaceFolder}/.env",

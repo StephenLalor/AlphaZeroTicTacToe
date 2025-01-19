@@ -1,7 +1,6 @@
 notes.txt
 tmp_*.py
 models/*
-test_*.py
 mlartifacts/*
 mlruns/*
 model_summary.txt
