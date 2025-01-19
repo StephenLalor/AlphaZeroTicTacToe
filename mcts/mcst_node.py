@@ -7,7 +7,8 @@ import torch
 
 from neural_networks.data_prep import get_input_feats, policy_to_valid_moves
 from neural_networks.tic_tac_toe_net import TicTacToeNet
-from tic_tac_toe.board import TicTacToeBoard, assign_reward
+from self_play.reward_assignment import assign_reward
+from tic_tac_toe.board import TicTacToeBoard
 
 logger = logging.getLogger("myapp.module")
 
