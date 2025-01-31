@@ -34,7 +34,7 @@ class BruteMCSTNode:
         Calculate UTC score for child WRT parent node.
         """
         exploitation = child.value / child.visits if child.visits else 0
-        exploration = c_puct * np.sqrt(np.log(self.visits) / child.visits)
+        exploration = c_puct * (np.sqrt(self.visits) / (child.visits + 1))
         return exploitation + exploration
 
     def select(self, c_puct: float) -> "BruteMCSTNode":
@@ -52,45 +52,26 @@ class BruteMCSTNode:
 
     def expand(self) -> "BruteMCSTNode":
         """
-        Add a child node corresponding to new game state after an unused move has been executed.
+        For each valid move, add a child node to the current node.
         """
-        new_board = copy.deepcopy(self.board)
-        # Exec next available move for child, not random move.
-        move = self.unused_moves.pop()
-        new_board.exec_move(move)
-        child = BruteMCSTNode(self, new_board, self.cfg)
-        self.children.append(child)
-        # Return the expanded child node.
-        return child
+        for move in self.board.valid_moves:
+            child_board = copy.deepcopy(self.board)
+            child_board.exec_move(move)
+            self.children.append(BruteMCSTNode(self, child_board, self.cfg))
 
-    # NOTE: Changed this from checking if there are valid moves left.
-    def is_fully_expanded(self):
-        return len(self.children) > 0
-
-    def traverse(self) -> "BruteMCSTNode":
-        """
-        Step through best child nodes if fully expanded, or expand if not.
-        """
-        # Start at this current node.
-        node = self
-        # Expand and select.
-        while not node.board.game_result:
-            if not node.is_fully_expanded():
-                return node.expand()
-            node = node.select(self.cfg["mcts"]["c"])
-        return node
-
-    def rollout(self) -> TicTacToeBoard:
+    def rollout(self) -> float:
         """
         From the current state, play to the end to get a result.
         """
         # Avoid modifying this node's board.
-        new_board = copy.deepcopy(self.board)
+        rollout_board = copy.deepcopy(self.board)
         # Excute random moves until the game is over.
-        while not new_board.game_result:
-            rand_move = self.rng.choice(new_board.valid_moves)
-            new_board.exec_move(tuple(rand_move))
-        return new_board
+        while not rollout_board.game_result:
+            rand_move = self.rng.choice(rollout_board.valid_moves)
+            rollout_board.exec_move(tuple(rand_move))
+        # Determine reward for terminal game.
+        player = rollout_board.last_player
+        return assign_reward(player, player, rollout_board.game_result, self.cfg["mcts"]["rewards"])
 
     def backpropagate(self, value: float):
         """
@@ -108,27 +89,36 @@ class BruteMCSTNode:
             # Negate value as player has switched.
             value = -value
 
-    def get_reward(self, board: TicTacToeBoard) -> float:
+    def is_fully_expanded(self):
+        return len(self.children) > 0
+
+    def get_action_prob_dist(self) -> tuple[np.array, np.array]:
         """
-        Calculate reward for a terminated game.
+        Get normalised action probability based on number of visits for each child node.
         """
-        player = board.last_player
-        res = board.game_result
-        return assign_reward(player, player, res, self.cfg["mcts"]["rewards"])
+        tot_visits = sum(child.visits for child in self.children)
+        probs = np.zeros(len(self.board.moves), dtype=np.float32)
+        actions_map = {action: i for i, action in enumerate(self.board.moves)}
+        for child in self.children:
+            if child.board.last_move in actions_map:
+                probs[actions_map[child.board.last_move]] = child.visits / tot_visits
+        actions = np.array(self.board.moves)
+        return (actions, probs)
 
     def search(self):
-        """
-        Perform simulation and return the best action to take from the root node.
-        """
-        root = self  # Initial node itself is the root.
-        for sim in range(1, self.cfg["mcts"]["sim_lim"]):
-            # Do selection and expansion.
-            node = root.traverse()
-
-            # Play out game from this position.
-            result_board = node.rollout()
-
-            # Update statistics.
-            value = self.get_reward(result_board)
+        root = self
+        for sim in range(1, self.cfg["mcts"]["sim_lim"] + 1):
+            # Begin every simulation from root node.
+            node = root
+            # Selection phase.
+            while node.is_fully_expanded() and not node.board.game_result:
+                node = node.select(self.cfg["mcts"]["c"])
+            # Expansion phase.
+            if not node.is_fully_expanded() and not node.board.game_result:
+                node.expand()
+            # Simulation phase.
+            value = node.rollout()
+            # Update phase.
             node.backpropagate(value)
-        return root.select(0.0)
+
+        return root.get_action_prob_dist()
