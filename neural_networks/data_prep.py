@@ -6,27 +6,17 @@ from tic_tac_toe.board import TicTacToeBoard
 
 def get_input_feats(board: TicTacToeBoard) -> torch.Tensor:
     """
-    Create feature plane stack with dims [batch_size, channels, height, width] consisting of the
-    current player feature plane, next player feature plane and a plane indicating which player is
-    to play next.
-
-    There is no need for historical context in TicTacToe so only one plane for each player's
-    position is needed.
+    Create feature plane stack from the raw board state.
     """
-    # TODO: Use tensor for board state to begin with.
-    state = torch.from_numpy(board.state)
-    # Create player planes.
-    last_player_plane = state == board.last_player.val
-    next_player_plane = state == board.next_player.val
-    # Create to-play plane.
-    if board.next_player == board.p1:
-        to_play_plane = torch.ones(board.dim, dtype=torch.float32)
-    else:
-        to_play_plane = torch.zeros(board.dim, dtype=torch.float32)
-    # Stack planes to create input features.
-    stack = torch.stack([last_player_plane, next_player_plane, to_play_plane])
-    # Add batch dimension.
-    return stack.unsqueeze(0)
+    # Plane representing player 1's moves.
+    state_p1 = board.state == board.p1.val
+    # Plane representing player 2's moves.
+    state_p2 = board.state == board.p2.val
+    # Plane representing the remaining moves on the board.
+    state_neutral = board.state == 0
+    # Stack into [3, 3, 3] tensor.
+    encoded_state = np.stack((state_p1, state_neutral, state_p2)).astype(np.float32)
+    return torch.tensor(encoded_state).unsqueeze(0)
 
 
 def policy_to_valid_moves(policy: np.ndarray, all_moves: list, valid_moves: list) -> dict:
@@ -39,4 +29,4 @@ def policy_to_valid_moves(policy: np.ndarray, all_moves: list, valid_moves: list
     masked_policy = moves_mask * policy
     masked_policy = masked_policy / np.sum(masked_policy)  # Re-norm probabilities.
     # Map moves to their probabilities.
-    return {move: prob for move, prob in zip(all_moves, masked_policy.tolist()) if prob > 0}
+    return {move: prob for move, prob in zip(all_moves, masked_policy.tolist())}
