@@ -1,5 +1,6 @@
 import copy
 import logging
+import math
 import uuid
 
 import numpy as np
@@ -57,9 +58,9 @@ class MCSTNode:
         Initially larger for moves with high prior probability, since visits will be small. Over
         time value increases and that term then dominates.
         """
-        q_value = child.value / child.visits if child.visits else 0
-        puct = c_puct * child.prior * (np.sqrt(self.visits) / (child.visits + 1))
-        logger.debug(f"Q: {q_value}, PUCT: {puct}")
+        # Invert and scale [-1, 1] → [0, 1].
+        q_value = 1 - ((child.value / child.visits + 1) / 2) if child.visits else 0.0
+        puct = c_puct * child.prior * math.sqrt(self.visits) / (child.visits + 1)
         return q_value + puct
 
     def select(self, c_puct: float) -> "MCSTNode":
@@ -70,7 +71,6 @@ class MCSTNode:
         for child in self.children:
             child.score = self.calc_selection_score(child, c_puct)
             if child.score > best_score:
-                logger.debug(f"New best selection score {child.uuid} \n\t{child}.")
                 best_score, best_child_node = child.score, child
         if best_child_node is None:
             raise ValueError("Failed to find best child node.")
@@ -81,12 +81,11 @@ class MCSTNode:
         For each move determined by the policy, add a child to the current node.
         """
         # Add a child node for every valid move.
-        policy = policy_to_valid_moves(policy, self.board.moves, self.board.valid_moves)
-        logger.debug(f"Adding child nodes for policy \n\t{policy}.")
         for move, prob in policy.items():
-            new_board = copy.deepcopy(self.board)
-            new_board.exec_move(move)
-            self.children.append(MCSTNode(self, prob, new_board, self.cfg))
+            if prob > 0:
+                new_board = copy.deepcopy(self.board)
+                new_board.exec_move(move)
+                self.children.append(MCSTNode(self, prob, new_board, self.cfg))
 
     def backpropagate(self, value: float):
         """
@@ -107,9 +106,9 @@ class MCSTNode:
         """
         Calculate reward for a terminated game.
         """
-        player = self.board.last_player  # Player who moved last.
+        player = self.board.last_player
         res = self.board.game_result
-        return assign_reward(player, player, res, self.cfg["rewards"])
+        return assign_reward(player, player, res, self.cfg["mcts"]["rewards"])
 
     def get_action_prob_dist(self) -> tuple[np.array, np.array]:
         """
@@ -124,61 +123,62 @@ class MCSTNode:
         actions = np.array(self.board.moves)
         return (actions, probs)
 
-    @torch.no_grad()
-    def search(self, model: TicTacToeNet) -> tuple:
-        """
-        Selection:
-            - Starting from the root, recursively select child nodes using the UCT formula.
-            - This continues until you reach a node that is not fully expanded (a leaf node).
-                - This node might be many levels deep in the tree.
 
-        Expansion:
-            - At this leaf node, perform expansion, creating its children.
+@torch.no_grad()
+def search(board: TicTacToeBoard, model: TicTacToeNet, cfg: dict) -> tuple[np.array, np.array]:
+    """
+    Selection:
+        - Starting from the root, recursively select child nodes using the UCT formula.
+        - This continues until you reach a node that is not fully expanded (a leaf node).
+            - This node might be many levels deep in the tree.
 
-        Evaluation:
-            - Evaluate the newly created child nodes (or the leaf node if it's a terminal node).
-            - Done using Policy and Value networks.
+    Expansion:
+        - At this leaf node, perform expansion, creating its children.
 
-        Backpropagation:
-            - The results of the evaluation are backpropagated up the tree
-            - From the expanded leaf node back to the root.
-            - Nodes along this path have visit counts and values updated.
-        """
-        root = self
-        logger.debug(f"Beginning search. \n\t{root}.")
-        for sim in range(1, self.cfg["sim_lim"] + 1):
-            # Begin each simulation at the root node.
-            logger.debug(f"Search iteration {sim}.")
-            node = root
+    Evaluation:
+        - Evaluate the newly created child nodes (or the leaf node if it's a terminal node).
+        - Done using Policy and Value networks.
 
-            # Selection phase.
-            while node.is_fully_expanded():  # Skipped on first simulation.
-                logger.debug(f"Fully expanded, doing selection on {node.uuid} \n\t{node}.")
-                node = node.select(self.cfg["c"])
-                logger.debug(f"Selected node {node.uuid} \n\t{node}.")
+    Backpropagation:
+        - The results of the evaluation are backpropagated up the tree
+        - From the expanded leaf node back to the root.
+        - Nodes along this path have visit counts and values updated.
+    """
+    # Begin each simulation at a new root node.
+    root = MCSTNode(None, 0, board, cfg)
+    root.visits = 1
+    # Apply dirchlet noise to first expansion.
+    feats = get_input_feats(root.board)
+    policy, _ = model(feats.to(model.device))
+    policy = torch.softmax(policy, axis=1).squeeze(0).cpu().numpy()
+    eps, alpha = cfg["mcts"]["dirichlet_epsilon"], cfg["mcts"]["dirichlet_alpha"]
+    noisy_policy = (1 - eps) * policy + eps * np.random.dirichlet([alpha] * 9)
+    noisy_policy = policy_to_valid_moves(noisy_policy, root.board.moves, root.board.valid_moves)
+    root.expand(noisy_policy)
 
-            # Expansion phase.
-            if not node.is_fully_expanded():
-                logger.debug(f"Not fully expanded {node.uuid} \n\t{node}")
-                if not node.board.game_result:
-                    logger.debug("Game state not terminal. Doing evaluation with NN.")
-                    # Evaluation - use predicted reward from value head.
-                    input_feats = get_input_feats(node.board)
-                    policy, value = model(input_feats)
-                    policy, value = model.parse_output(policy, value)
-                    logger.debug(f"\tPolicy: {policy} Value: {value}.")
-                    # Expansion.
-                    logger.debug(f"Expanding {node.uuid} \n\t{node}")
-                    node.expand(policy)
-                else:
-                    # Result known so no need for value head, use defined reward instead.
-                    logger.debug("Game state is terminal. Doing evaluation with defined rewards.")
-                    policy, value = None, node.get_reward()
-                    logger.debug(f"\tPolicy: {policy} Value: {value}.")
+    # Begin search from expanded root node.
+    for sim in range(1, cfg["mcts"]["sim_lim"] + 1):
+        # Selection phase.
+        node = root
+        while node.is_fully_expanded():  # Skipped on first simulation.
+            node = node.select(cfg["mcts"]["c"])
 
-            # Update phase.
-            logger.debug(f"Updating from {node.uuid} \n\t{node}")
-            node.backpropagate(value)
+        # Expansion phase.
+        if not node.board.game_result:
+            # Evaluation - use predicted reward from value head.
+            feats = get_input_feats(node.board)
+            policy, value = model(feats.to(model.device))
+            policy = torch.softmax(policy, axis=1).squeeze(0).cpu().numpy()
+            policy = policy_to_valid_moves(policy, node.board.moves, node.board.valid_moves)
+            value = value.item()  # No negation!
+            # Expansion.
+            node.expand(policy)
+        else:
+            # Result known so no need for value head, use defined reward instead.
+            policy, value = None, -node.get_reward()
 
-        # Get probability distribution of all actions available from root.
-        return root.get_action_prob_dist()
+        # Update phase.
+        node.backpropagate(value)
+
+    # Get probability distribution of all actions available from root.
+    return root.get_action_prob_dist()
