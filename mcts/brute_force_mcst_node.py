@@ -1,4 +1,5 @@
 import copy
+import math
 
 import numpy as np
 
@@ -29,13 +30,18 @@ class BruteMCSTNode:
         uct_info = f"[Visits] {self.visits} [Value] {self.value}"
         return f"{struct_info} | {uct_info} | {last_info}"
 
-    def calc_utc_score(self, child: "BruteMCSTNode", c_puct: float) -> float:
+    def calc_selection_score(self, child: "BruteMCSTNode", c_puct: float) -> float:
         """
-        Calculate UTC score for child WRT parent node.
+        Calculate score using PUCT and mean value for child WRT parent node.
+
+        Initially larger for moves with high prior probability, since visits will be small. Over
+        time value increases and that term then dominates.
         """
-        exploitation = child.value / child.visits if child.visits else 0
-        exploration = c_puct * (np.sqrt(self.visits) / (child.visits + 1))
-        return exploitation + exploration
+        # Invert and scale [-1, 1] → [0, 1].
+        q_value = 1 - ((child.value / child.visits + 1) / 2) if child.visits else 0.0
+        # Prior=1.0 for brute-force MCTS
+        puct = c_puct * math.sqrt(self.visits) / (child.visits + 1)  # Prior=1.0 for brute-force.
+        return q_value + puct
 
     def select(self, c_puct: float) -> "BruteMCSTNode":
         """
@@ -43,7 +49,7 @@ class BruteMCSTNode:
         """
         best_child_node, best_score = None, -np.inf
         for child in self.children:
-            score = self.calc_utc_score(child, c_puct)
+            score = self.calc_selection_score(child, c_puct)
             if score > best_score:
                 best_score, best_child_node = score, child
         if best_child_node is None:
@@ -74,11 +80,6 @@ class BruteMCSTNode:
         return assign_reward(player, player, rollout_board.game_result, self.cfg["mcts"]["rewards"])
 
     def backpropagate(self, value: float):
-        """
-        From current node back up to the root node, update stats.
-
-        If the child node wins, then this node must have lost. Hence we negate the reward.
-        """
         node = self  # Starting at the current node.
         while node is not None:
             # Update metrics for the current node.
@@ -86,8 +87,7 @@ class BruteMCSTNode:
             node.value += value
             # Traverse up to parent.
             node = node.parent
-            # Negate value as player has switched.
-            value = -value
+            value = -value  # Negate value as player has switched.
 
     def is_fully_expanded(self):
         return len(self.children) > 0
@@ -117,7 +117,7 @@ class BruteMCSTNode:
             if not node.is_fully_expanded() and not node.board.game_result:
                 node.expand()
             # Simulation phase.
-            value = node.rollout()
+            value = -node.rollout()
             # Update phase.
             node.backpropagate(value)
 
