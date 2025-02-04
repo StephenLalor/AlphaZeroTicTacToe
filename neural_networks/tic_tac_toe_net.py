@@ -68,6 +68,7 @@ class PolicyHead(torch.nn.Module):
         self.conv_1 = torch.nn.Conv2d(num_in, num_feats, kernel_size=3, padding=1)
         self.batch_norm_1 = torch.nn.BatchNorm2d(num_feats)
         self.relu_1 = torch.nn.ReLU(inplace=False)
+        self.dropout_1 = torch.nn.Dropout(0.4)
         self.flatten_2 = torch.nn.Flatten()
         self.linear_2 = torch.nn.Linear(num_feats * 9, num_out)
 
@@ -76,6 +77,7 @@ class PolicyHead(torch.nn.Module):
         x = self.conv_1(x)
         x = self.batch_norm_1(x)
         x = self.relu_1(x)
+        x = self.dropout_1(x)
         # Transform feature map to move probabilities.
         x = self.flatten_2(x)
         x = self.linear_2(x)
@@ -90,6 +92,7 @@ class ValueHead(torch.nn.Module):
 
     def __init__(self, num_in: int, num_out: int, num_feats: int):
         super().__init__()
+        # TODO: Try kernel size 1 here with padding="same"
         self.conv1 = torch.nn.Conv2d(num_in, num_feats, kernel_size=3, padding=1)
         self.batch_norm_1 = torch.nn.BatchNorm2d(num_feats)
         self.relu_1 = torch.nn.ReLU(inplace=False)
@@ -97,7 +100,8 @@ class ValueHead(torch.nn.Module):
         self.linear_2 = torch.nn.Linear(9 * num_feats, 2 * num_feats)
         self.batch_norm_2 = torch.nn.BatchNorm1d(2 * num_feats)
         self.relu_2 = torch.nn.ReLU(inplace=False)
-        self.linear_3 = torch.nn.Linear(64, num_out)
+        self.dropout_2 = torch.nn.Dropout(0.15)
+        self.linear_3 = torch.nn.Linear(2 * num_feats, num_out)
         self.tanh_3 = torch.nn.Tanh()
 
     def forward(self, x):
@@ -110,6 +114,7 @@ class ValueHead(torch.nn.Module):
         x = self.linear_2(x)
         x = self.batch_norm_2(x)
         x = self.relu_2(x)
+        x = self.dropout_2(x)
         # Map compressed features to scalar score in [-1, 1].
         x = self.linear_3(x)
         x = self.tanh_3(x)
