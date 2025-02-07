@@ -1,7 +1,10 @@
+# TODO: Combine both node types.
+
 import copy
 import math
 
 import numpy as np
+from numpy.random import SeedSequence
 
 from self_play.reward_assignment import assign_reward
 from tic_tac_toe.board import TicTacToeBoard
@@ -12,15 +15,16 @@ class BruteMCSTNode:
     Monte Carlo Search Tree Node.
     """
 
-    def __init__(self, parent: "BruteMCSTNode", board: TicTacToeBoard, cfg: dict):
+    def __init__(
+        self, parent: "BruteMCSTNode", board: TicTacToeBoard, cfg: dict, seed: SeedSequence
+    ):
         self.parent = parent
         self.children = []
         self.board = board
-        self.unused_moves = board.valid_moves.copy()
         self.visits = 0
         self.value = 0
         self.cfg = cfg
-        self.rng = np.random.default_rng()
+        self.rng = np.random.default_rng(seed)
 
     def __str__(self):
         has_parent = self.parent is not None
@@ -60,10 +64,11 @@ class BruteMCSTNode:
         """
         For each valid move, add a child node to the current node.
         """
-        for move in self.board.valid_moves:
+        child_seeds = self.rng.spawn(len(self.board.valid_moves))
+        for i, move in enumerate(self.board.valid_moves):
             child_board = copy.deepcopy(self.board)
             child_board.exec_move(move)
-            self.children.append(BruteMCSTNode(self, child_board, self.cfg))
+            self.children.append(BruteMCSTNode(self, child_board, self.cfg, child_seeds[i]))
 
     def rollout(self) -> float:
         """
