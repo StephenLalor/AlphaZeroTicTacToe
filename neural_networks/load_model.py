@@ -18,7 +18,7 @@ def validate_model_inference(mdl: TicTacToeNet, board: TicTacToeBoard = None) ->
     # Create sample board if needed and test inference.
     if not board:
         board = TicTacToeBoard(TicTacToeBot("p1", "X"), TicTacToeBot("p2", "O"))
-    policy, value = mdl(get_input_feats(board))
+    policy, value = mdl(get_input_feats(board).to(mdl.device))
 
     # Check output structure.
     exp_action_size = board.dim[0] * board.dim[0]

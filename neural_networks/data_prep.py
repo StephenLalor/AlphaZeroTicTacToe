@@ -8,14 +8,14 @@ def get_input_feats(board: TicTacToeBoard) -> torch.Tensor:
     """
     Create feature plane stack from the raw board state.
     """
-    # Plane representing player 1's moves.
-    state_p1 = board.state == board.p1.val
-    # Plane representing player 2's moves.
-    state_p2 = board.state == board.p2.val
+    # Plane representing last player's moves.
+    state_last = board.state == board.last_player.val
+    # Plane representing current player's moves.
+    state_curr = board.state == board.next_player.val
     # Plane representing the remaining moves on the board.
     state_neutral = board.state == 0
     # Stack into [3, 3, 3] tensor.
-    encoded_state = np.stack((state_p1, state_neutral, state_p2)).astype(np.float32)
+    encoded_state = np.stack((state_last, state_neutral, state_curr)).astype(np.float32)
     return torch.tensor(encoded_state).unsqueeze(0)
 
 
