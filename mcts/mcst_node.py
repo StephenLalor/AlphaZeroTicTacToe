@@ -56,10 +56,15 @@ class MCSTNode:
         Calculate score using PUCT and mean value for child WRT parent node.
 
         Initially larger for moves with high prior probability, since visits will be small. Over
-        time value increases and that term then dominates.
+        time Q-value increases and that term then dominates.
+
+        The parent wants the child to have a low Q-value as it wants the opponent to be in a bad
+        situation, so we invert the Q-value by subtracting it from 1. Low Q-value for child means
+        high Q-value for parent.
         """
-        # Invert and scale [-1, 1] → [0, 1].
+        # Invert Q-value and scale [-1, 1] → [0, 1].
         q_value = 1 - ((child.value / child.visits + 1) / 2) if child.visits else 0.0
+        # Calculate puct score using prior selection probability.
         puct = c_puct * child.prior * math.sqrt(self.visits) / (child.visits + 1)
         return q_value + puct
 
@@ -173,8 +178,9 @@ def search(board: TicTacToeBoard, model: TicTacToeNet, cfg: dict) -> tuple[np.ar
             value = value.item()  # No negation!
             # Expansion.
             node.expand(policy)
+        # Result known so no need for value head, use defined reward instead.
         else:
-            # Result known so no need for value head, use defined reward instead.
+            # Last action taken was by parent node, because expand happens before this check.
             policy, value = None, -node.get_reward()
 
         # Update phase.
