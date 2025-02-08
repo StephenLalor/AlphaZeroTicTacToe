@@ -63,12 +63,12 @@ class PolicyHead(torch.nn.Module):
     possible move.
     """
 
-    def __init__(self, num_in: int, num_out: int, num_feats: int):
+    def __init__(self, num_in: int, num_out: int, num_feats: int, dropout: float):
         super().__init__()
         self.conv_1 = torch.nn.Conv2d(num_in, num_feats, kernel_size=3, padding=1)
         self.batch_norm_1 = torch.nn.BatchNorm2d(num_feats)
         self.relu_1 = torch.nn.ReLU(inplace=False)
-        self.dropout_1 = torch.nn.Dropout(0.4)
+        self.dropout_1 = torch.nn.Dropout(dropout)
         self.flatten_2 = torch.nn.Flatten()
         self.linear_2 = torch.nn.Linear(num_feats * 9, num_out)
 
@@ -90,7 +90,7 @@ class ValueHead(torch.nn.Module):
     current board position is.
     """
 
-    def __init__(self, num_in: int, num_out: int, num_feats: int):
+    def __init__(self, num_in: int, num_out: int, num_feats: int, dropout: float):
         super().__init__()
         # TODO: Try kernel size 1 here with padding="same"
         self.conv1 = torch.nn.Conv2d(num_in, num_feats, kernel_size=3, padding=1)
@@ -100,7 +100,7 @@ class ValueHead(torch.nn.Module):
         self.linear_2 = torch.nn.Linear(9 * num_feats, 2 * num_feats)
         self.batch_norm_2 = torch.nn.BatchNorm1d(2 * num_feats)
         self.relu_2 = torch.nn.ReLU(inplace=False)
-        self.dropout_2 = torch.nn.Dropout(0.15)
+        self.dropout_2 = torch.nn.Dropout(dropout)
         self.linear_3 = torch.nn.Linear(2 * num_feats, num_out)
         self.tanh_3 = torch.nn.Tanh()
 
@@ -138,11 +138,17 @@ class TicTacToeNet(torch.nn.Module):
         )
         # Separate policy prediction subnetwork.
         self.policy_head = PolicyHead(
-            num_in=hparams["hidden"], num_out=self.action_size, num_feats=hparams["pol_feats"]
+            num_in=hparams["hidden"],
+            num_out=self.action_size,
+            num_feats=hparams["pol_feats"],
+            dropout=hparams["pol_dropout"],
         )
         # Separate value prediction subnetwork.
         self.value_head = ValueHead(
-            num_in=hparams["hidden"], num_out=1, num_feats=hparams["val_feats"]
+            num_in=hparams["hidden"],
+            num_out=1,
+            num_feats=hparams["val_feats"],
+            dropout=hparams["val_dropout"],
         )
         # Send to device and compile for faster training.
         self = torch.compile(self)
