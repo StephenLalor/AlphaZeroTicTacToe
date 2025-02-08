@@ -43,8 +43,8 @@ class BruteMCSTNode:
         """
         # Invert and scale [-1, 1] → [0, 1].
         q_value = 1 - ((child.value / child.visits + 1) / 2) if child.visits else 0.0
-        # Prior=1.0 for brute-force MCTS
-        puct = c_puct * math.sqrt(self.visits) / (child.visits + 1)  # Prior=1.0 for brute-force.
+        # PUCT differs for brute force.
+        puct = c_puct * math.sqrt(math.log(self.visits) / (child.visits + 1e-8))
         return q_value + puct
 
     def select(self, c_puct: float) -> "BruteMCSTNode":
