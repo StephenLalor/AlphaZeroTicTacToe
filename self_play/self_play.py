@@ -41,6 +41,7 @@ class TicTacToeTrainer:
         board = copy.deepcopy(clean_board)
         while not board.game_result:
             # Begin search from the current position.
+            turn_board = copy.deepcopy(board)  # Board at start of turn.
             actions, probs = search(board, model, cfg)
             # Do stochastic move selection and execute.
             probs = probs ** (1 / cfg["mcts"]["temperature"])
@@ -48,7 +49,7 @@ class TicTacToeTrainer:
             action = self.rng.choice(actions, p=probs)
             board.exec_move(tuple(action))
             # Update history.
-            game_data.append_turn(board, probs, board.last_player, board.last_move)
+            game_data.append_turn(turn_board, probs, turn_board.last_player, turn_board.last_move)
         # Assign reward for each turn now that result is known.
         game_data.finalise(board.last_player, board.game_result, cfg["mcts"]["rewards"])
         return game_data
@@ -83,6 +84,7 @@ class TicTacToeTrainer:
             # Optimise.
             self.optimiser.zero_grad()
             tot_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg["nn"]["max_norm"])
             if not self.tot_steps % self.cfg["exp"]["log_period"]:
                 self.track_grad_norms()
             self.optimiser.step()
@@ -123,7 +125,7 @@ class TicTacToeTrainer:
             print(f"--------- Cycle {cycle} ---------")
             game_dataset = GameDataset()
             self.model.eval()  # Not training yet.
-            # Play out games concurrently.
+            # Play out games.
             for run in range(self.cfg["self_play"]["playouts"]):
                 game_result = self.self_play(self.model, self.clean_board, self.cfg)
                 game_dataset.append_game(game_result)
