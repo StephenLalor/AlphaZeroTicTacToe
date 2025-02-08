@@ -38,7 +38,6 @@ class GameData:
         """
         # Add reward for each turn.
         for turn in range(len(self.players)):
-            # Reward negated to represent opponent's perspective.
             reward = -assign_reward(last, self.players[turn], res, rewards_cfg)
             self.rewards.append(torch.tensor(reward, dtype=torch.float32).unsqueeze(0))
 

@@ -1,4 +1,5 @@
-from tic_tac_toe.player import TicTacToeBot, TicTacToeException
+from tic_tac_toe.board import TicTacToeException
+from tic_tac_toe.player import TicTacToeBot
 
 
 def assign_reward(player: TicTacToeBot, last_player: TicTacToeBot, res: str, rewards: dict):
