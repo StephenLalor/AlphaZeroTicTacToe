@@ -93,8 +93,25 @@ class GameDataset(torch.utils.data.Dataset):
         batch_rewards = torch.cat([game.rewards for game in batch], dim=0)
         return batch_states, batch_pol_targets, batch_rewards
 
-    def to_loader(self, batch_size: int) -> DataLoader:
+    def to_loader(self, batch_size: int, num_workers: int = 0) -> DataLoader:
         """
         Convert game data to batch loader with shuffling.
         """
-        return DataLoader(self, batch_size, shuffle=True, collate_fn=self._collate)
+        return DataLoader(
+            dataset=self,
+            batch_size=batch_size,
+            shuffle=True,
+            collate_fn=self._collate,
+            num_workers=num_workers,
+        )
+
+
+class BatchGameData:
+    """
+    Container tying game data and game boards together for use in batching.
+    """
+
+    def __init__(self, game_data: GameData, board: TicTacToeBoard, game_id: int):
+        self.game_data = game_data
+        self.board = board
+        self.game_id = game_id

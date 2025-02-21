@@ -127,7 +127,7 @@ class TicTacToeNet(torch.nn.Module):
     output of this is passed to 2 separate heads which calculate the policy and state value.
     """
 
-    def __init__(self, hparams: dict):
+    def __init__(self, hparams: dict, device_str: str = "cuda", compile: bool = True):
         super().__init__()
         self.action_size = 9
         # Shared initial convolution block.
@@ -151,8 +151,9 @@ class TicTacToeNet(torch.nn.Module):
             dropout=hparams["val_dropout"],
         )
         # Send to device and compile for faster training.
-        self = torch.compile(self)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if compile:
+            self = torch.compile(self)
+        self.device = torch.device(device_str)
         self.to(self.device)
 
     def parse_output(self, policy: torch.Tensor, value: torch.Tensor) -> tuple[torch.Tensor, float]:

@@ -1,6 +1,9 @@
 # TODO: Docstrings!
+# TODO: Set experiment tags.
+# TODO: Clean this up.
 import copy
 import logging
+import math
 
 import mlflow
 import numpy as np
@@ -10,9 +13,9 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader
 from torchinfo import summary
 
-from mcts.mcst_node import search
+from mcts.mcst_node import batch_search, search
 from neural_networks.tic_tac_toe_net import TicTacToeNet
-from self_play.game_data import GameData, GameDataset
+from self_play.game_data import BatchGameData, GameData, GameDataset
 from tic_tac_toe.board import TicTacToeBoard
 from tic_tac_toe.player import TicTacToeBot
 
@@ -34,6 +37,56 @@ class TicTacToeTrainer:
         # MLflow logging.
         self.tot_steps = 0  # Current training step count.
 
+    # FIXME: This can use self.model
+    def batched_self_play(
+        self, model: TicTacToeNet, clean_board: TicTacToeBoard, cfg: dict
+    ) -> list[GameData]:
+        # Prep list of games to play.
+        active_games, completed_games = [], []
+        for game_id in range(self.cfg["self_play"]["playouts"]):
+            active_games.append(BatchGameData(GameData(), copy.deepcopy(clean_board), game_id))
+
+        # Play out all games, removing games as they finish.
+        while active_games:
+            # Find best actions for each board.
+            batch_action_probs = batch_search([x.board for x in active_games], model, cfg)
+
+            # Execute actions for each board.
+            for i in reversed(range(len(active_games))):  # Must iterate backwards as popping.
+                # Apply temperature to next move probabilities.
+                turn_board = copy.deepcopy(active_games[i].board)  # Board at start of turn.
+                actions, probs = batch_action_probs[i]
+                remaining = len(turn_board.valid_moves) if len(turn_board.valid_moves) else 0
+                temp = math.sqrt(remaining) * cfg["mcts"]["temperature"] + 1e-8
+                temp_probs = probs ** (1 / temp)
+                temp_probs = temp_probs / temp_probs.sum()
+
+                # Execute move.
+                action = self.rng.choice(actions, p=temp_probs)
+                active_games[i].board.exec_move(tuple(action))
+
+                # Log data for this turn before next move is executed.
+                active_games[i].game_data.append_turn(
+                    board=turn_board,
+                    probs=temp_probs,  # NOTE: Logging temp probs now.
+                    player=turn_board.last_player,
+                    move=turn_board.last_move,
+                )
+
+                # Terminal state cleanup actions.
+                if active_games[i].board.game_result:
+                    # Finalise games data if board is in terminal state.
+                    active_games[i].game_data.finalise(
+                        active_games[i].board.last_player,
+                        active_games[i].board.game_result,
+                        cfg["mcts"]["rewards"],
+                    )
+                    # Remove current game from active games and add it to completed games.
+                    completed_games.append(active_games.pop(i))
+                    batch_action_probs.pop(i)
+
+        return [completed_game.game_data for completed_game in completed_games]
+
     def self_play(self, model: TicTacToeNet, clean_board: TicTacToeBoard, cfg: dict) -> GameData:
         # Board, action probabilities and reward for each turn.
         game_data = GameData()
@@ -41,12 +94,13 @@ class TicTacToeTrainer:
         board = copy.deepcopy(clean_board)
         while not board.game_result:
             # Begin search from the current position.
+            # TODO: Why not just store data before making move?
             turn_board = copy.deepcopy(board)  # Board at start of turn.
             actions, probs = search(board, model, cfg)
             # Do stochastic move selection and execute.
-            probs = probs ** (1 / cfg["mcts"]["temperature"])
-            probs = probs / probs.sum()
-            action = self.rng.choice(actions, p=probs)
+            temp_probs = probs ** (1 / cfg["mcts"]["temperature"])
+            temp_probs = temp_probs / temp_probs.sum()
+            action = self.rng.choice(actions, p=temp_probs)  # NOTE: Select using temp but not log.
             board.exec_move(tuple(action))
             # Update history.
             game_data.append_turn(turn_board, probs, turn_board.last_player, turn_board.last_move)
@@ -80,7 +134,7 @@ class TicTacToeTrainer:
             # Compute loss vs self play results.
             pol_loss = cross_entropy(pred_policy, batch_pol_targets)
             val_loss = mse_loss(pred_value, batch_rewards)
-            tot_loss = pol_loss + val_loss
+            tot_loss = pol_loss + self.cfg["nn"]["val_weight"] * val_loss
             # Optimise.
             self.optimiser.zero_grad()
             tot_loss.backward()
@@ -103,12 +157,13 @@ class TicTacToeTrainer:
             # Compute loss vs self play results.
             pol_loss = cross_entropy(pred_policy, test_pol_targets)
             val_loss = mse_loss(pred_value, test_rewards)
-            tot_loss = pol_loss + val_loss
+            tot_loss = pol_loss + self.cfg["nn"]["val_weight"] * val_loss
             # Record loss.
             mlflow.log_metric(f"{log_as}_loss/tot", round(tot_loss.item(), 2), self.tot_steps)
             mlflow.log_metric(f"{log_as}_loss/pol", round(pol_loss.item(), 2), self.tot_steps)
             mlflow.log_metric(f"{log_as}_loss/val", round(val_loss.item(), 2), self.tot_steps)
 
+    # TODO: This needs to be cleaned up to work only in batch mode.
     def self_train(self):
         # Initialise mlflow logging.
         mlflow.set_tracking_uri(self.cfg["exp"]["uri"])
@@ -123,12 +178,17 @@ class TicTacToeTrainer:
         for cycle in range(self.cfg["self_play"]["cycles"]):
             # Generate many games with self play.
             print(f"--------- Cycle {cycle} ---------")
-            game_dataset = GameDataset()
             self.model.eval()  # Not training yet.
-            # Play out games.
-            for run in range(self.cfg["self_play"]["playouts"]):
-                game_result = self.self_play(self.model, self.clean_board, self.cfg)
-                game_dataset.append_game(game_result)
+            game_dataset = GameDataset()
+            if not self.cfg["self_play"]["batched"]:
+                raise Exception("I am meant to be running in batch")
+                for run in range(self.cfg["self_play"]["playouts"]):
+                    game_result = self.self_play(self.model, self.clean_board, self.cfg)
+                    game_dataset.append_game(game_result)
+            else:
+                game_results = self.batched_self_play(self.model, self.clean_board, self.cfg)
+                for game_result in game_results:
+                    game_dataset.append_game(game_result)
 
             # Begin training using self play data.
             game_data_loader = game_dataset.to_loader(self.cfg["nn"]["batch_size"])
