@@ -6,7 +6,12 @@ import uuid
 import numpy as np
 import torch
 
-from neural_networks.data_prep import get_input_feats, policy_to_valid_moves
+from neural_networks.data_prep import (
+    apply_dirichlet_noise,
+    get_batch_input_feats,
+    get_input_feats,
+    policy_to_valid_moves,
+)
 from neural_networks.tic_tac_toe_net import TicTacToeNet
 from self_play.reward_assignment import assign_reward
 from tic_tac_toe.board import TicTacToeBoard
@@ -27,12 +32,13 @@ class MCSTNode:
         prior_prob: float,
         board: TicTacToeBoard,
         cfg: dict,
+        visits: int = 0,
     ):
         self.uuid = uuid.uuid4()
         self.parent = parent
         self.children = []
         self.board = board
-        self.visits = 0
+        self.visits = visits
         self.value = 0
         self.score = 0  # Selection score.
         self.prior = prior_prob
@@ -81,10 +87,16 @@ class MCSTNode:
             raise ValueError("Failed to find best child node.")
         return best_child_node
 
-    def expand(self, policy: torch.Tensor):
+    def expand(self, policy: torch.Tensor, noise: bool):
         """
         For each move determined by the policy, add a child to the current node.
         """
+        # Parse policy into valid move probabilities.
+        policy = torch.softmax(policy, axis=1).cpu().numpy().squeeze()
+        if noise:
+            eps, alpha = self.cfg["mcts"]["dirichlet_epsilon"], self.cfg["mcts"]["dirichlet_alpha"]
+            policy = apply_dirichlet_noise(policy, eps, alpha)
+        policy = policy_to_valid_moves(policy, self.board.moves, self.board.valid_moves)
         # Add a child node for every valid move.
         for move, prob in policy.items():
             if prob > 0:
@@ -149,17 +161,14 @@ def search(board: TicTacToeBoard, model: TicTacToeNet, cfg: dict) -> tuple[np.ar
         - From the expanded leaf node back to the root.
         - Nodes along this path have visit counts and values updated.
     """
+    assert not model.training
     # Begin each simulation at a new root node.
     root = MCSTNode(None, 0, board, cfg)
     root.visits = 1
+
     # Apply dirchlet noise to first expansion.
-    feats = get_input_feats(root.board)
-    policy, _ = model(feats.to(model.device))
-    policy = torch.softmax(policy, axis=1).squeeze(0).cpu().numpy()
-    eps, alpha = cfg["mcts"]["dirichlet_epsilon"], cfg["mcts"]["dirichlet_alpha"]
-    noisy_policy = (1 - eps) * policy + eps * np.random.dirichlet([alpha] * 9)
-    noisy_policy = policy_to_valid_moves(noisy_policy, root.board.moves, root.board.valid_moves)
-    root.expand(noisy_policy)
+    policy, _ = model(get_input_feats(root.board, model.device))
+    root.expand(policy, noise=True)
 
     # Begin search from expanded root node.
     for sim in range(1, cfg["mcts"]["sim_lim"] + 1):
@@ -171,13 +180,10 @@ def search(board: TicTacToeBoard, model: TicTacToeNet, cfg: dict) -> tuple[np.ar
         # Expansion phase.
         if not node.board.game_result:
             # Evaluation - use predicted reward from value head.
-            feats = get_input_feats(node.board)
-            policy, value = model(feats.to(model.device))
-            policy = torch.softmax(policy, axis=1).squeeze(0).cpu().numpy()
-            policy = policy_to_valid_moves(policy, node.board.moves, node.board.valid_moves)
+            policy, value = model(get_input_feats(root.board, model.device))
             value = value.item()  # No negation!
             # Expansion.
-            node.expand(policy)
+            node.expand(policy, noise=False)
         # Result known so no need for value head, use defined reward instead.
         else:
             # Last action taken was by parent node, because expand happens before this check.
@@ -188,3 +194,54 @@ def search(board: TicTacToeBoard, model: TicTacToeNet, cfg: dict) -> tuple[np.ar
 
     # Get probability distribution of all actions available from root.
     return root.get_action_prob_dist()
+
+
+@torch.no_grad()
+def batch_search(
+    boards: list[TicTacToeBoard], model: TicTacToeNet, cfg: dict
+) -> list[tuple[np.array, np.array]]:
+    assert not model.training
+    # Initialise root for each board state.
+    roots = [MCSTNode(None, 0, board, cfg, visits=1) for board in boards]
+
+    # Perform first expansion with Dirichlet noise.
+    policies, _ = model(get_batch_input_feats(boards, model.device))
+    for i in range(len(roots)):
+        roots[i].expand(policies[i].unsqueeze(0), noise=True)  # Access by index removes batch dim.
+
+    # Seach in all games.
+    for sim in range(1, cfg["mcts"]["sim_lim"] + 1):
+        # Search starts in root.
+        nodes = [root for root in roots]
+
+        # Batch selection phase.
+        for i in range(len(nodes)):
+            while nodes[i].is_fully_expanded() and not nodes[i].board.game_result:
+                nodes[i] = nodes[i].select(cfg["mcts"]["c"])
+
+        # Determine expandable nodes.
+        is_exp = [not node.board.game_result and not node.is_fully_expanded() for node in nodes]
+        exp_idxs = [i for i, mask in enumerate(is_exp) if mask]
+        exp_boards = [nodes[i].board for i in exp_idxs]
+
+        # Predict for expandable nodes.
+        if exp_boards:
+            exp_pols, exp_vals = model(get_batch_input_feats(exp_boards, model.device))
+            exp_vals = exp_vals.cpu().numpy()
+
+        # Calculate state values for expandable and non-expandable nodes.
+        final_values = np.zeros(len(nodes))
+        for i, node in enumerate(nodes):
+            final_values[i] = exp_vals[exp_idxs.index(i)] if is_exp[i] else -node.get_reward()
+
+        # Expand the expandable nodes.
+        if exp_boards:
+            for idx_in_expand, i in enumerate(exp_idxs):
+                nodes[i].expand(exp_pols[idx_in_expand].unsqueeze(0), noise=False)
+
+        # Update phase.
+        for i in range(len(nodes)):
+            nodes[i].backpropagate(final_values[i])
+
+    # Get probability distributions of all actions available from root.
+    return [root.get_action_prob_dist() for root in roots]
