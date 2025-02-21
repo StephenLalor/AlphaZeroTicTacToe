@@ -4,8 +4,6 @@ from collections import deque
 
 import yaml
 
-from mcts.mcst_node import MCSTNode
-
 
 def set_up_logging(default_path="logging_config.yaml", default_level=logging.INFO):
     with open(default_path, "rt") as f:
@@ -19,7 +17,7 @@ def read_config(path):
     return cfg
 
 
-def print_tree(root: MCSTNode) -> None:
+def print_tree(root) -> None:
     """
     Print the tree nodes in level order.
     """

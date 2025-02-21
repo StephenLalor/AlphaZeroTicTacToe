@@ -1,0 +1,14 @@
+# MCTS config.
+mcts:
+    sim_lim: 1500
+    c: 2.5
+    temperature: 1.3
+    dirichlet_epsilon: 0.30
+    dirichlet_alpha: 0.35
+    rewards:
+        win: 1.0
+        lose: -1.0
+        draw: 0.0
+perf:
+    n_games: 1000
+    n_runs: 1

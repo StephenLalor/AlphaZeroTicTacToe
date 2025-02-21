@@ -1,32 +1,39 @@
 # Experiment config.
 exp:
-    name: 'test_2'
+    name: 'test_21'
     uri: 'http://localhost:5000'
     log_period: 5
+    test_data_path: 'validation/data/game_dataset_1000_games.pt'
 
 # NN config.
 nn:
     hidden: 64
     res_blocks: 4
-    pol_feats: 32
-    val_feats: 3
-    batch_size: 5
-    pol_lr: 0.0001
-    val_lr: 0.000001
-    oth_lr: 0.0001
+    pol_feats: 64
+    val_feats: 32
+    batch_size: 8
+    pol_lr: 0.001
+    val_lr: 0.001
+    oth_lr: 0.001
+    val_dropout: 0.1
+    pol_dropout: 0.1
+    max_norm: 0.5
 
 # MCTS config.
 mcts:
-    sim_lim: 10
-    c: 1.2
-    tau: 1
+    sim_lim: 60
+    c: 2.5
+    temperature: 0.5
+    dirichlet_epsilon: 0.30
+    dirichlet_alpha: 0.35
     rewards:
         win: 1.0
         lose: -1.0
-        draw: 0.5
+        draw: 0.0
 
 # Self play config.
 self_play:
+    batched: true
     cycles: 2
-    playouts: 25
-    epochs: 3
+    playouts: 16
+    epochs: 2
