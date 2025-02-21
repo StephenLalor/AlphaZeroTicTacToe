@@ -18,7 +18,7 @@ def validate_model_inference(mdl: TicTacToeNet, board: TicTacToeBoard = None) ->
     # Create sample board if needed and test inference.
     if not board:
         board = TicTacToeBoard(TicTacToeBot("p1", "X"), TicTacToeBot("p2", "O"))
-    policy, value = mdl(get_input_feats(board).to(mdl.device))
+    policy, value = mdl(get_input_feats(board, mdl.device))
 
     # Check output structure.
     exp_action_size = board.dim[0] * board.dim[0]
@@ -33,8 +33,7 @@ def load_mdl_for_inference(mdl_name: str, mdl_ver: int) -> TicTacToeNet:
     """
     Load and configure model for inference, then validate.
     """
-    mdl = mlflow.pytorch.load_model(f"models:/{mdl_name}/{mdl_ver}")
-    mdl.eval()
+    mdl = mlflow.pytorch.load_model(f"models:/{mdl_name}/{mdl_ver}").eval()
     if torch.cuda.is_available():
         mdl.to(torch.device("cuda"))
     validate_model_inference(mdl)
