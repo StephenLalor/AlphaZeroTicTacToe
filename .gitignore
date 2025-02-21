@@ -1,9 +1,12 @@
 notes.txt
 tmp_*.py
+tmp.py
 models/*
 mlartifacts/*
 mlruns/*
 model_summary.txt
+validation/data/
+delete_me/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
